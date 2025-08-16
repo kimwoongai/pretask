@@ -2,7 +2,7 @@ services:
   - type: web
     name: document-processing-pipeline
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: ./render-build.sh
     startCommand: python run.py
     plan: starter
     healthCheckPath: /
