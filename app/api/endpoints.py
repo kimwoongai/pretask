@@ -239,11 +239,13 @@ async def process_single_case(case_id: str):
             "processing_time_ms": processing_time_ms,
             "token_count_before": token_count_before,
             "token_count_after": token_count_after,
-            "token_reduction_percent": metrics.token_reduction,
             "quality_score": (metrics.nrr + metrics.fpr + metrics.ss) / 3.0,
-            "nrr": metrics.nrr,
-            "fpr": metrics.fpr,
-            "ss": metrics.ss,
+            "metrics": {
+                "nrr": metrics.nrr,
+                "fpr": metrics.fpr,
+                "ss": metrics.ss,
+                "token_reduction": metrics.token_reduction
+            },
             "passed": passed,
             "errors": errors,
             "suggestions": suggestions,
