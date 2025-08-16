@@ -393,14 +393,21 @@ async def start_batch_improvement(
 @router.get("/batch/status/{job_id}")
 async def get_batch_status(job_id: str):
     """배치 작업 상태 조회"""
-    # 실제로는 데이터베이스에서 조회
-    return {
-        "job_id": job_id,
-        "status": "in_progress",
-        "current_step": "batch_evaluation",
-        "progress": 65,
-        "estimated_completion": "2024-01-15T18:30:00"
-    }
+    try:
+        from app.services.batch_processor import batch_processor
+        
+        job_status = batch_processor.get_job_status(job_id)
+        
+        if not job_status:
+            raise HTTPException(status_code=404, detail=f"배치 작업을 찾을 수 없습니다: {job_id}")
+        
+        return job_status
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"배치 상태 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"배치 상태 조회 실패: {str(e)}")
 
 
 # 전량 처리 모드 엔드포인트
@@ -1522,14 +1529,18 @@ async def get_dsl_versions():
 async def get_batch_stats():
     """배치 처리 통계 조회"""
     try:
-        # 실제 배치 처리 시스템이 구현되면 여기서 실제 데이터 조회
+        from app.services.batch_processor import batch_processor
+        
+        stats = batch_processor.get_batch_stats()
+        
         return {
-            "status": "idle",
-            "total_processed": 0,
-            "success_rate": 0.0,
-            "current_cycle": 0,
-            "progress": 0.0,
-            "estimated_completion": None
+            "status": stats["status"],
+            "total_processed": stats["completed_jobs"],
+            "success_rate": stats["avg_success_rate"],
+            "current_cycle": stats["total_jobs"],
+            "progress": 0.0,  # 실시간 진행률은 개별 작업에서 조회
+            "estimated_completion": None,
+            "active_jobs": stats["active_jobs"]
         }
     except Exception as e:
         logger.error(f"배치 통계 조회 실패: {e}")
@@ -1540,8 +1551,11 @@ async def get_batch_stats():
 async def get_batch_history(limit: int = 10):
     """배치 처리 이력 조회"""
     try:
-        # 실제 배치 처리 시스템이 구현되면 여기서 실제 데이터 조회
-        return []
+        from app.services.batch_processor import batch_processor
+        
+        history = batch_processor.get_job_history(limit)
+        
+        return history
     except Exception as e:
         logger.error(f"배치 이력 조회 실패: {e}")
         raise HTTPException(status_code=500, detail=f"배치 이력 조회 실패: {str(e)}")
@@ -1551,10 +1565,15 @@ async def get_batch_history(limit: int = 10):
 async def start_batch_processing(settings: dict):
     """배치 처리 시작"""
     try:
-        # 실제 배치 처리 시스템이 구현되면 여기서 배치 작업 시작
-        job_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        from app.services.batch_processor import batch_processor
         
-        logger.info(f"배치 처리 시작 요청: {job_id}, 설정: {settings}")
+        print(f"🚀 DEBUG: 배치 처리 시작 요청 - 설정: {settings}")
+        logger.info(f"배치 처리 시작 요청 - 설정: {settings}")
+        
+        # 실제 배치 작업 시작
+        job_id = await batch_processor.start_batch_job(settings)
+        
+        print(f"✅ DEBUG: 배치 작업 시작됨 - ID: {job_id}")
         
         return {
             "job_id": job_id,
@@ -1562,6 +1581,7 @@ async def start_batch_processing(settings: dict):
             "message": "배치 처리가 시작되었습니다"
         }
     except Exception as e:
+        print(f"❌ DEBUG: 배치 처리 시작 실패: {e}")
         logger.error(f"배치 처리 시작 실패: {e}")
         raise HTTPException(status_code=500, detail=f"배치 처리 시작 실패: {str(e)}")
 
@@ -1570,15 +1590,27 @@ async def start_batch_processing(settings: dict):
 async def stop_batch_processing(job_id: str):
     """배치 처리 중지"""
     try:
-        # 실제 배치 처리 시스템이 구현되면 여기서 배치 작업 중지
+        from app.services.batch_processor import batch_processor
+        
+        print(f"⏹️ DEBUG: 배치 처리 중지 요청 - ID: {job_id}")
         logger.info(f"배치 처리 중지 요청: {job_id}")
         
-        return {
-            "job_id": job_id,
-            "status": "stopped",
-            "message": "배치 처리가 중지되었습니다"
-        }
+        # 실제 배치 작업 중지
+        success = batch_processor.stop_batch_job(job_id)
+        
+        if success:
+            return {
+                "job_id": job_id,
+                "status": "stopped",
+                "message": "배치 처리가 중지되었습니다"
+            }
+        else:
+            raise HTTPException(status_code=404, detail=f"배치 작업을 찾을 수 없습니다: {job_id}")
+            
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"❌ DEBUG: 배치 처리 중지 실패: {e}")
         logger.error(f"배치 처리 중지 실패: {e}")
         raise HTTPException(status_code=500, detail=f"배치 처리 중지 실패: {str(e)}")
 
