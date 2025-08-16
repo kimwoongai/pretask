@@ -173,9 +173,18 @@ class DSLRuleManager:
                     rule = DSLRule.from_dict(rule_data)
                     self.rules[rule.rule_id] = rule
                 
+                print(f"🔧 DEBUG: 기본 규칙 로드 완료: {len(self.rules)}개")
+                
+                # 개별 규칙들도 로드
+                individual_count = self._load_individual_rules_from_mongodb()
+                print(f"🔧 DEBUG: 개별 규칙 로드 완료: {individual_count}개")
+                
                 return True
-            
-            return False
+            else:
+                # 기본 규칙이 없어도 개별 규칙은 로드 시도
+                individual_count = self._load_individual_rules_from_mongodb()
+                print(f"🔧 DEBUG: 기본 규칙 없음, 개별 규칙만 로드: {individual_count}개")
+                return individual_count > 0
             
         except Exception as e:
             logger.error(f"MongoDB에서 규칙 로드 실패: {e}")
@@ -274,6 +283,53 @@ class DSLRuleManager:
         for rule in default_rules:
             self.rules[rule.rule_id] = rule
     
+    def _load_individual_rules_from_mongodb(self) -> int:
+        """개별 규칙 컬렉션에서 규칙들을 로드"""
+        try:
+            from app.core.database import db_manager
+            
+            collection = db_manager.get_collection("dsl_rules_individual")
+            if collection is None:
+                return 0
+            
+            import asyncio
+            
+            async def load_individual_async():
+                cursor = collection.find({})
+                documents = await cursor.to_list(length=None)  # 모든 개별 규칙 로드
+                return documents
+            
+            # 동기 함수에서 비동기 호출
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            documents = loop.run_until_complete(load_individual_async())
+            
+            count = 0
+            for doc in documents:
+                try:
+                    # _id를 rule_id로 변환
+                    if '_id' in doc:
+                        doc['rule_id'] = doc['_id']
+                        del doc['_id']
+                    
+                    rule = DSLRule.from_dict(doc)
+                    self.rules[rule.rule_id] = rule
+                    count += 1
+                except Exception as e:
+                    print(f"🔧 WARNING: 개별 규칙 로드 실패 - {doc.get('rule_id', 'unknown')}: {e}")
+                    continue
+            
+            return count
+            
+        except Exception as e:
+            print(f"🔧 ERROR: 개별 규칙 로드 오류: {e}")
+            logger.error(f"개별 규칙 로드 실패: {e}")
+            return 0
+    
     def save_rules(self):
         """MongoDB에 규칙 저장"""
         try:
@@ -359,18 +415,94 @@ class DSLRuleManager:
             logger.error(f"MongoDB에 규칙 저장 실패: {e}")
             return False
     
+    def _save_single_rule_to_mongodb(self, rule: DSLRule) -> bool:
+        """개별 규칙을 MongoDB에 저장 (upsert)"""
+        try:
+            print(f"🔧 DEBUG: 개별 규칙 MongoDB 저장 시작 - ID: {rule.rule_id}")
+            
+            from app.core.database import db_manager
+            
+            collection = db_manager.get_collection("dsl_rules_individual")
+            print(f"🔧 DEBUG: 개별 규칙 컬렉션 객체: {collection}")
+            
+            if collection is None:
+                print(f"🔧 ERROR: 개별 규칙 컬렉션을 가져올 수 없음")
+                return False
+            
+            # 규칙 데이터 준비
+            rule_data = rule.to_dict()
+            rule_data['_id'] = rule.rule_id  # rule_id를 MongoDB _id로 사용
+            
+            print(f"🔧 DEBUG: 개별 규칙 데이터 준비 완료 - ID: {rule.rule_id}")
+            
+            # 비동기 저장
+            import asyncio
+            
+            async def save_single_rule_async():
+                try:
+                    print(f"🔧 DEBUG: 개별 규칙 비동기 저장 시작...")
+                    
+                    # upsert: 존재하면 업데이트, 없으면 삽입
+                    result = await collection.replace_one(
+                        {"_id": rule.rule_id}, 
+                        rule_data, 
+                        upsert=True
+                    )
+                    
+                    print(f"🔧 DEBUG: 개별 규칙 저장 완료 - Matched: {result.matched_count}, Modified: {result.modified_count}, Upserted: {result.upserted_id}")
+                    
+                    return result.matched_count > 0 or result.upserted_id is not None
+                except Exception as e:
+                    print(f"🔧 ERROR: 개별 규칙 비동기 저장 중 오류: {e}")
+                    return False
+            
+            # 동기 함수에서 비동기 호출
+            try:
+                print(f"🔧 DEBUG: 개별 규칙 이벤트 루프 처리...")
+                import asyncio
+                
+                # 새로운 이벤트 루프에서 실행 (기존 루프 충돌 방지)
+                success = asyncio.run(save_single_rule_async())
+                print(f"🔧 DEBUG: 개별 규칙 저장 완료 - 결과: {success}")
+                
+                return success
+                
+            except Exception as e:
+                print(f"🔧 ERROR: 개별 규칙 이벤트 루프 오류: {e}")
+                # 기존 방식으로 폴백
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # 이미 실행 중인 루프에서는 create_task 사용
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(asyncio.run, save_single_rule_async())
+                            return future.result(timeout=10)
+                    else:
+                        return loop.run_until_complete(save_single_rule_async())
+                except Exception as fallback_error:
+                    print(f"🔧 ERROR: 개별 규칙 폴백 저장 실패: {fallback_error}")
+                    return False
+            
+        except Exception as e:
+            print(f"🔧 ERROR: 개별 규칙 저장 최종 오류: {e}")
+            logger.error(f"개별 규칙 MongoDB 저장 실패: {e}")
+            return False
+    
     def add_rule(self, rule: DSLRule) -> bool:
-        """규칙 추가"""
+        """규칙 추가 - 개별 규칙만 MongoDB에 추가/업데이트"""
         try:
             print(f"🔧 DEBUG: DSL 규칙 추가 시도 - ID: {rule.rule_id}")
             print(f"🔧 DEBUG: 규칙 패턴: {rule.pattern}")
             print(f"🔧 DEBUG: 규칙 타입: {rule.rule_type}")
             
+            # 메모리에 규칙 추가
             self.rules[rule.rule_id] = rule
             print(f"🔧 DEBUG: 메모리에 규칙 추가 완료, 총 {len(self.rules)}개 규칙")
             
-            save_result = self.save_rules()
-            print(f"🔧 DEBUG: MongoDB 저장 결과: {save_result}")
+            # 개별 규칙만 MongoDB에 저장
+            save_result = self._save_single_rule_to_mongodb(rule)
+            print(f"🔧 DEBUG: MongoDB 개별 규칙 저장 결과: {save_result}")
             
             if save_result:
                 logger.info(f"규칙 추가: {rule.rule_id}")
