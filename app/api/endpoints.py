@@ -6,7 +6,6 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import logging
 import re
-from bs4 import BeautifulSoup
 
 from app.core.config import processing_mode, settings
 from app.services.single_run_processor import SingleRunProcessor
@@ -1171,23 +1170,22 @@ async def _extract_factual_content_only(content: str) -> str:
 
 def _clean_text_noise(content: str) -> str:
     """기본 텍스트 노이즈 제거"""
-    # HTML 태그 제거
-    soup = BeautifulSoup(content, 'html.parser')
-    for script in soup(["script", "style"]):
-        script.decompose()
-    text = soup.get_text()
+    text = content
     
-    # UI/메뉴 제거 패턴들
+    # UI/메뉴 제거 패턴들 (실제 원본 데이터 기준)
     noise_patterns = [
-        r'판례상세\s*저장\s*인쇄\s*보관\s*전자팩스\s*공유\s*화면내\s*검색.*?닫기',
+        r'판례상세\s*저장\s*인쇄\s*보관\s*전자팩스\s*공유\s*화면내\s*검색\s*조회\s*닫기',
+        r'재판경과\s*.*?\s*참조판례\s*\d+\s*건\s*인용판례\s*\d+\s*건',
         r'PDF로\s*보기\s*안내.*?출력을\s*하실\s*수\s*있습니다\.',
-        r'유사문서\s*\d+\s*건.*?태그\s*클라우드.*?닫기',
         r'상세내용\s*안에\s*있는\s*표나\s*도형.*?원본\s*그대로\s*출력을\s*하실\s*수\s*있습니다\.',
         r'Tip\d+\..*?닫기',
-        r'유사율\s*\d+%.*?\d+%',
-        r'검색하기\s*통합검색\s*검색하기',
+        r'유사문서\s*\d+\s*건.*?태그\s*클라우드.*?닫기',
+        r'유사율\s*\d+%.*?100%',
         r'태그\s*클라우드\s*자세히보기.*?검색하기',
-        r'전자소송기록뷰어상.*?확인하시기\s*바랍니다\.'
+        r'검색하기\s*통합검색\s*검색하기',
+        r'#\w+(?:\s*#\w+)*',  # 태그들 (#대표 #이사 #특허 등)
+        r'국승\s*광주지방법원-\d{4}-구합-\d+',
+        r'귀속년도\s*:\s*\d{4}\s*심급\s*:\s*\d+심\s*생산일자\s*:\s*\d{4}\.\d{2}\.\d{2}\.\s*진행상태\s*:\s*진행중'
     ]
     
     for pattern in noise_patterns:
