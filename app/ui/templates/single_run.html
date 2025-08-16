@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}단건 점검 모드 - 문서 처리 파이프라인{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-play-circle me-2"></i>
+                    단건 점검 모드 (Shakedown)
+                </h4>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">
+                    케이스 1건 기준으로 전처리 → GPT-5 평가 → (필요 시) 규칙 자동 패치 → 재실행까지 "그 한 건" 내부에서만 안정적으로 순환하는지 확인합니다.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 케이스 선택 및 실행 -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-file-alt me-2"></i>
+                    케이스 선택
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="case-select" class="form-label">케이스 선택</label>
+                    <select class="form-select" id="case-select">
+                        <option value="">케이스를 선택하세요</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <button class="btn btn-primary w-100" id="process-btn" disabled>
+                        <i class="fas fa-play me-1"></i>
+                        처리 시작
+                    </button>
+                </div>
+                
+                <div class="mb-3">
+                    <button class="btn btn-outline-secondary w-100" id="next-case-btn">
+                        <i class="fas fa-forward me-1"></i>
+                        다음 케이스 제안
+                    </button>
+                </div>
+                
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>합격 기준:</strong><br>
+                    NRR ≥ 0.92, FPR ≥ 0.985<br>
+                    SS ≥ 0.90, 토큰절감 ≥ 20%
+                </div>
+            </div>
+        </div>
+        
+        <!-- 처리 통계 -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    처리 통계
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="h4 mb-0 text-success" id="consecutive-passes">0</div>
+                        <small class="text-muted">연속 통과</small>
+                    </div>
+                    <div class="col-6">
+                        <div class="h4 mb-0" id="batch-ready">
+                            <span class="badge bg-secondary">준비중</span>
+                        </div>
+                        <small class="text-muted">Batch 승급</small>
+                    </div>
+                </div>
+                <div class="progress mt-3">
+                    <div class="progress-bar" role="progressbar" id="progress-bar" style="width: 0%"></div>
+                </div>
+                <small class="text-muted">20건 연속 통과까지</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 처리 결과 -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-poll me-2"></i>
+                    처리 결과
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="processing-status" class="text-center py-5" style="display: none;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="mt-2">처리 중...</div>
+                </div>
+                
+                <div id="result-content" style="display: none;">
+                    <!-- 품질 지표 -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <div class="h3 mb-0" id="nrr-value">-</div>
+                                    <small class="text-muted">NRR</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <div class="h3 mb-0" id="fpr-value">-</div>
+                                    <small class="text-muted">FPR</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <div class="h3 mb-0" id="ss-value">-</div>
+                                    <small class="text-muted">SS</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <div class="h3 mb-0" id="token-reduction">-</div>
+                                    <small class="text-muted">토큰절감(%)</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 결과 상태 -->
+                    <div class="alert" id="result-alert" role="alert" style="display: none;">
+                        <div id="result-message"></div>
+                    </div>
+                    
+                    <!-- 규칙 제안 카드 -->
+                    <div id="rule-suggestions" style="display: none;">
+                        <h6><i class="fas fa-lightbulb me-2"></i>규칙 제안</h6>
+                        <div id="suggestions-content"></div>
+                    </div>
+                </div>
+                
+                <div id="no-result" class="text-center py-5 text-muted">
+                    <i class="fas fa-info-circle fa-3x mb-3"></i>
+                    <div>케이스를 선택하고 처리를 시작하세요</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Diff 보기 모달 -->
+<div class="modal fade" id="diffModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-code-compare me-2"></i>
+                    전/후 비교
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">처리 전</h6>
+                        <pre id="before-content" class="bg-light p-3" style="max-height: 400px; overflow-y: auto;"></pre>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted">처리 후</h6>
+                        <pre id="after-content" class="bg-light p-3" style="max-height: 400px; overflow-y: auto;"></pre>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <h6 class="text-muted">변경 요약</h6>
+                    <div id="diff-summary"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                <button type="button" class="btn btn-primary" id="show-diff-btn">
+                    <i class="fas fa-eye me-1"></i>
+                    Diff 보기
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 규칙 제안 적용 모달 -->
+<div class="modal fade" id="ruleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cogs me-2"></i>
+                    규칙 제안 적용
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="rule-details"></div>
+                <div class="mt-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="auto-rerun">
+                        <label class="form-check-label" for="auto-rerun">
+                            적용 후 자동으로 재실행
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-success" id="apply-rule-btn">
+                    <i class="fas fa-check me-1"></i>
+                    규칙 적용
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/single-run.js"></script>
+{% endblock %}

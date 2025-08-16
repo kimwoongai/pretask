@@ -1,0 +1,374 @@
+/* Custom Styles for Document Processing Pipeline */
+
+/* Base styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+/* Navigation */
+.navbar-brand {
+    font-weight: 600;
+}
+
+/* Cards */
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* Status badges */
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Progress bars */
+.progress {
+    height: 0.5rem;
+}
+
+/* Metrics display */
+.metric-card {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    margin-bottom: 1rem;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    opacity: 0.8;
+}
+
+/* Quality gates */
+.quality-gate {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.quality-gate.passed {
+    background-color: #d1edff;
+    border-color: #0d6efd;
+}
+
+.quality-gate.failed {
+    background-color: #f8d7da;
+    border-color: #dc3545;
+}
+
+/* Processing status */
+.processing-status {
+    text-align: center;
+    padding: 2rem;
+}
+
+.processing-spinner {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Diff viewer */
+.diff-container {
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.diff-added {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.diff-removed {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.diff-unchanged {
+    color: #6c757d;
+}
+
+/* Rule suggestions */
+.rule-suggestion {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background-color: #fff;
+}
+
+.rule-suggestion.high-confidence {
+    border-color: #28a745;
+    background-color: #f8fff9;
+}
+
+.rule-suggestion.medium-confidence {
+    border-color: #ffc107;
+    background-color: #fffdf5;
+}
+
+.rule-suggestion.low-confidence {
+    border-color: #dc3545;
+    background-color: #fff5f5;
+}
+
+.confidence-score {
+    font-weight: bold;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+}
+
+.confidence-high {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.confidence-medium {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.confidence-low {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* Batch processing */
+.batch-step {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-left: 3px solid #dee2e6;
+    margin-bottom: 0.5rem;
+}
+
+.batch-step.active {
+    border-left-color: #0d6efd;
+    background-color: #f8f9ff;
+}
+
+.batch-step.completed {
+    border-left-color: #28a745;
+    background-color: #f8fff9;
+}
+
+.batch-step.failed {
+    border-left-color: #dc3545;
+    background-color: #fff5f5;
+}
+
+.batch-step-icon {
+    margin-right: 0.75rem;
+    width: 1.5rem;
+    text-align: center;
+}
+
+/* Full processing */
+.full-processing-controls {
+    background-color: #fff;
+    border: 2px solid #dc3545;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.danger-zone {
+    border: 1px solid #dc3545;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    background-color: #fff5f5;
+}
+
+.unlock-sequence {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.unlock-step {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    background-color: #fff;
+    font-size: 0.875rem;
+}
+
+.unlock-step.completed {
+    background-color: #d4edda;
+    border-color: #28a745;
+    color: #155724;
+}
+
+/* Monitoring */
+.monitoring-widget {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.monitoring-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.monitoring-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+.monitoring-trend {
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.trend-up {
+    color: #28a745;
+}
+
+.trend-down {
+    color: #dc3545;
+}
+
+.trend-stable {
+    color: #6c757d;
+}
+
+/* Alert styles */
+.alert-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+.alert-error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+
+.alert-icon {
+    margin-right: 0.75rem;
+    font-size: 1.25rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .metric-value {
+        font-size: 1.5rem;
+    }
+    
+    .monitoring-value {
+        font-size: 2rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+}
+
+/* Animation utilities */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Loading states */
+.loading-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+/* Custom scrollbar */
+.custom-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #6c757d #f8f9fa;
+}
+
+.custom-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+    background: #f8f9fa;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+    background-color: #6c757d;
+    border-radius: 3px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: #495057;
+}
