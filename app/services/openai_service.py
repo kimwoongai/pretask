@@ -168,21 +168,27 @@ class OpenAIService:
 **평가 작업:**
 1. 전처리 품질을 정량적으로 평가하세요
 2. 발견된 문제점들을 errors 배열에 나열하세요
-3. **개선 제안은 실제 문제가 있을 때만 생성하세요 (억지로 만들지 마세요)**
+3. **전처리된 텍스트를 분석하여 개선 가능한 패턴을 찾아 제안하세요**
 
-**개선 제안 생성 기준 (해당사항이 있을 때만):**
+**개선 제안 생성 기준:**
+- **항상 1-2개의 개선 제안을 생성하세요** (품질이 우수해도)
 - **NRR < 0.9**: 제거되지 않은 노이즈 패턴이 명확히 보이는 경우
 - **ICR < 0.95**: 중요한 내용이 잘못 제거된 경우  
 - **SS < 0.9**: 의미가 크게 왜곡된 경우
 - **Token reduction < 15%**: 전처리 효과가 부족한 경우
-- **명백한 패턴 오류**: 정규식이 놓친 명확한 노이즈가 있는 경우
+- **추가 최적화 기회**: 품질이 좋아도 더 나은 패턴이 보이는 경우
 
-**품질 기준:**
-- **우수 (NRR≥0.9, ICR≥0.95, SS≥0.9)**: suggestions 배열을 비워도 됨
-- **보통 (지표 중 하나라도 기준 미달)**: 구체적인 개선 제안 1-2개
-- **부족 (여러 지표 미달)**: 상세한 개선 제안 2-3개
+**개선 제안 유형 (우선순위 순):**
+1. **중복 정보 제거**: 반복되는 법원명, 사건번호, 날짜 패턴
+2. **참조 정보 간소화**: 판례 인용, 법조문 참조 축약
+3. **구조적 노이즈**: 페이지 번호, 구분선, 메뉴 항목
+4. **형식적 표현 통합**: 유사한 의미의 다양한 표현 정규화
+5. **불필요한 상세정보**: 과도한 절차적 설명, 기술적 안내
 
-**중요: 전처리 품질이 이미 우수하다면 suggestions를 빈 배열로 두세요**
+**품질별 제안 개수:**
+- **우수 (모든 지표 기준 충족)**: 1-2개 최적화 제안
+- **보통 (일부 지표 미달)**: 2-3개 구체적 개선 제안  
+- **부족 (여러 지표 미달)**: 3-4개 상세한 개선 제안
 
 **평가 기준:**
 1. NRR (Noise Reduction Rate): 불필요한 문구 제거율 (0-1)
@@ -302,6 +308,16 @@ class OpenAIService:
             
             errors = result_data.get("errors", [])
             suggestions = result_data.get("suggestions", [])
+            
+            print(f"🔍 DEBUG: AI 응답 상세 분석:")
+            print(f"  - 메트릭스: NRR={metrics.nrr}, ICR/FPR={metrics.fpr}, SS={metrics.ss}, Token reduction={metrics.token_reduction}%")
+            print(f"  - 오류 개수: {len(errors)}")
+            print(f"  - 제안 개수: {len(suggestions)}")
+            if suggestions:
+                print(f"  - 제안 내용: {suggestions}")
+            else:
+                print(f"  - ⚠️ AI가 제안을 생성하지 않았습니다!")
+                print(f"  - 원본 suggestions 데이터: {result_data.get('suggestions', 'KEY_NOT_FOUND')}")
             
             return metrics, errors, suggestions
             
