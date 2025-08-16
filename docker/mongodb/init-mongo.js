@@ -14,7 +14,7 @@ db.createUser({
 });
 
 // 컬렉션 생성 및 인덱스 설정
-db.createCollection('precedents_v2');  // 원본 데이터 (읽기 전용)
+db.createCollection('cases');  // 케이스 데이터 (원본 + 전처리)
 db.createCollection('processed_precedents');  // 전처리된 데이터
 db.createCollection('processing_results');  // 처리 결과 및 메트릭
 db.createCollection('rules_versions');  // 규칙 버전
@@ -22,10 +22,11 @@ db.createCollection('batch_jobs');  // 배치 작업
 db.createCollection('safety_gates');
 
 // 인덱스 생성
-// precedents_v2 (원본 데이터)
-db.precedents_v2.createIndex({ "precedent_id": 1 }, { unique: true });
-db.precedents_v2.createIndex({ "court_type": 1, "decision_date": 1 });
-db.precedents_v2.createIndex({ "extraction_date": -1 });
+// cases (케이스 데이터)
+db.cases.createIndex({ "precedent_id": 1 }, { unique: true });
+db.cases.createIndex({ "court_type": 1, "decision_date": 1 });
+db.cases.createIndex({ "extraction_date": -1 });
+db.cases.createIndex({ "processed_content": 1 });  // 전처리된 케이스 조회용
 
 // processed_precedents (전처리된 데이터)
 db.processed_precedents.createIndex({ "original_id": 1, "rules_version": 1 });
@@ -44,7 +45,7 @@ db.batch_jobs.createIndex({ "job_id": 1 }, { unique: true });
 db.batch_jobs.createIndex({ "status": 1 });
 
 // 샘플 데이터 삽입 (개발용)
-db.precedents_v2.insertMany([
+db.cases.insertMany([
     {
         precedent_id: "sample_001",
         case_name: "민사소송 샘플 케이스",

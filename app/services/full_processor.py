@@ -381,21 +381,60 @@ class FullProcessor:
             }
             
             # 규칙 적용
+            original_content = case_data.get("content", "")
             processed_content, applied_rules = self.dsl_engine.apply_rules(
-                case_data["original_content"], metadata
+                original_content, metadata
             )
             
             end_time = datetime.now()
             processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
             
             # 토큰 수 계산
-            token_count_before = self.openai_service.calculate_token_count(case_data["original_content"])
+            token_count_before = self.openai_service.calculate_token_count(original_content)
             token_count_after = self.openai_service.calculate_token_count(processed_content)
             
+            # cases 컬렉션에 전량 처리 결과 저장
+            try:
+                from app.core.database import db_manager
+                cases_collection = db_manager.get_collection("cases")
+                
+                if cases_collection is not None:
+                    case_result = {
+                        "original_id": str(case_data["_id"]),
+                        "precedent_id": case_data.get("precedent_id", ""),
+                        "case_name": case_data.get("case_name", ""),
+                        "case_number": case_data.get("case_number", ""),
+                        "court_name": case_data.get("court_name", ""),
+                        "court_type": case_data.get("court_type", ""),
+                        "decision_date": case_data.get("decision_date", ""),
+                        "original_content": original_content,
+                        "processed_content": processed_content,
+                        "rules_version": "v1.0.0",
+                        "processing_mode": "full",
+                        "processing_time_ms": processing_time_ms,
+                        "token_count_before": int(token_count_before),
+                        "token_count_after": int(token_count_after),
+                        "token_reduction_percent": ((int(token_count_before) - int(token_count_after)) / int(token_count_before) * 100) if int(token_count_before) > 0 else 0,
+                        "applied_rules": applied_rules,
+                        "status": "completed",
+                        "created_at": datetime.now().isoformat(),
+                        "updated_at": datetime.now().isoformat()
+                    }
+                    
+                    await cases_collection.update_one(
+                        {"original_id": str(case_data["_id"])},
+                        {"$set": case_result},
+                        upsert=True
+                    )
+                    
+                    logger.info(f"Saved full processing result for case {case_data.get('_id')}")
+            except Exception as save_error:
+                logger.error(f"Failed to save full processing result: {save_error}")
+            
             return {
-                "case_id": case_data["case_id"],
+                "case_id": str(case_data["_id"]),
                 "success": True,
-                "before_content": case_data["original_content"],
+                "before_content": original_content,
                 "after_content": processed_content,
                 "applied_rules": applied_rules,
                 "processing_time_ms": processing_time_ms,
@@ -413,39 +452,36 @@ class FullProcessor:
             }
     
     async def _save_batch_results(self, batch_results: List[Dict[str, Any]]):
-        """배치 결과 저장"""
+        """배치 결과 저장 - 이미 개별 케이스 처리에서 cases 컬렉션에 저장했으므로 통계만 업데이트"""
         
-        for result in batch_results:
-            if result["success"]:
-                # 성공한 케이스는 MongoDB에 저장
-                processing_result = ProcessingResult(
-                    case_id=result["case_id"],
-                    rules_version=await self._get_current_rules_version(),
-                    metrics=QualityMetrics(nrr=0, fpr=0, ss=0, token_reduction=0),  # 전량 처리에서는 평가 생략
-                    before_content=result["before_content"],
-                    after_content=result["after_content"],
-                    diff_summary="",
-                    processing_time_ms=result["processing_time_ms"],
-                    token_count_before=result["token_count_before"],
-                    token_count_after=result["token_count_after"],
-                    errors=[],
-                    warnings=[]
-                )
-                
-                await result_repo.save_result(processing_result.dict())
-                
-                # 원본 케이스 업데이트
-                await document_repo.update_case(result["case_id"], {
-                    "status": ProcessingStatus.COMPLETED.value,
-                    "processed_content": result["after_content"],
-                    "updated_at": datetime.now()
-                })
-            else:
-                # 실패한 케이스는 별도 처리
-                await document_repo.update_case(result["case_id"], {
-                    "status": ProcessingStatus.FAILED.value,
-                    "updated_at": datetime.now()
-                })
+        # 통계 목적으로만 사용 - 실제 저장은 _process_single_case_full에서 이미 완료
+        success_count = sum(1 for result in batch_results if result.get("success", False))
+        failure_count = len(batch_results) - success_count
+        
+        logger.info(f"Batch results: {success_count} successes, {failure_count} failures")
+        
+        # 필요시 processing_results 컬렉션에 메타데이터 저장
+        try:
+            for result in batch_results:
+                if result["success"]:
+                    processing_result = ProcessingResult(
+                        case_id=result["case_id"],
+                        rules_version=await self._get_current_rules_version(),
+                        metrics=QualityMetrics(nrr=0, fpr=0, ss=0, token_reduction=0),  # 전량 처리에서는 평가 생략
+                        before_content=result["before_content"],
+                        after_content=result["after_content"],
+                        diff_summary="",
+                        processing_time_ms=result["processing_time_ms"],
+                        token_count_before=result["token_count_before"],
+                        token_count_after=result["token_count_after"],
+                        errors=[],
+                        warnings=[]
+                    )
+                    
+                    await result_repo.save_result(processing_result.dict())
+                    
+        except Exception as e:
+            logger.error(f"Failed to save processing results metadata: {e}")
     
     def _update_processing_stats(self, batch_results: List[Dict[str, Any]]):
         """처리 통계 업데이트"""
@@ -590,9 +626,25 @@ class FullProcessor:
         return total_time_seconds / 3600  # 시간 단위로 변환
     
     async def _get_batch_cases(self, offset: int, batch_size: int) -> List[Dict[str, Any]]:
-        """배치 케이스 가져오기"""
-        # 실제로는 데이터베이스에서 페이징 조회
-        return []
+        """배치 케이스 가져오기 (precedents_v2에서)"""
+        try:
+            from app.core.database import db_manager
+            collection = db_manager.get_collection("precedents_v2")
+            
+            if collection is None:
+                logger.error("Database connection unavailable")
+                return []
+            
+            # 페이징으로 케이스 조회
+            cursor = collection.find({}).skip(offset).limit(batch_size)
+            cases = await cursor.to_list(length=batch_size)
+            
+            logger.info(f"Retrieved {len(cases)} cases from offset {offset}")
+            return cases
+            
+        except Exception as e:
+            logger.error(f"Failed to get batch cases: {e}")
+            return []
     
     async def _generate_final_report(self, batch_job: BatchJob):
         """최종 리포트 생성"""

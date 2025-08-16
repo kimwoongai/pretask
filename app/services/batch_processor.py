@@ -185,11 +185,20 @@ class BatchProcessor:
             processed_cases = []
             failed_cases = []
             
-            # 샘플 케이스들 가져오기
-            sample_cases = await document_repo.get_stratified_sample(
-                batch_job.stratification_criteria,
-                batch_job.sample_size
-            )
+            # 샘플 케이스들 가져오기 (precedents_v2에서)
+            from app.core.database import db_manager
+            collection = db_manager.get_collection("precedents_v2")
+            
+            if collection is None:
+                raise Exception("Database connection unavailable")
+            
+            # 층화 샘플링 로직
+            query = batch_job.stratification_criteria or {}
+            cursor = collection.aggregate([
+                {"$match": query},
+                {"$sample": {"size": batch_job.sample_size}}
+            ])
+            sample_cases = await cursor.to_list(length=batch_job.sample_size)
             
             # 병렬 처리
             semaphore = asyncio.Semaphore(settings.max_concurrent_batches)
@@ -248,12 +257,46 @@ class BatchProcessor:
                 }
                 
                 processed_content, applied_rules = self.dsl_engine.apply_rules(
-                    case_data["original_content"], metadata
+                    case_data.get("content", ""), metadata
                 )
                 
+                # cases 컬렉션에 배치 처리 결과 저장
+                try:
+                    from app.core.database import db_manager
+                    cases_collection = db_manager.get_collection("cases")
+                    
+                    if cases_collection is not None:
+                        case_result = {
+                            "original_id": str(case_data["_id"]),
+                            "precedent_id": case_data.get("precedent_id", ""),
+                            "case_name": case_data.get("case_name", ""),
+                            "case_number": case_data.get("case_number", ""),
+                            "court_name": case_data.get("court_name", ""),
+                            "court_type": case_data.get("court_type", ""),
+                            "decision_date": case_data.get("decision_date", ""),
+                            "original_content": case_data.get("content", ""),
+                            "processed_content": processed_content,
+                            "rules_version": "v1.0.0",
+                            "processing_mode": "batch",
+                            "applied_rules": applied_rules,
+                            "status": "completed",
+                            "created_at": datetime.now().isoformat(),
+                            "updated_at": datetime.now().isoformat()
+                        }
+                        
+                        await cases_collection.update_one(
+                            {"original_id": str(case_data["_id"])},
+                            {"$set": case_result},
+                            upsert=True
+                        )
+                        
+                        logger.info(f"Saved batch processing result for case {case_data.get('_id')}")
+                except Exception as save_error:
+                    logger.error(f"Failed to save batch result: {save_error}")
+                
                 return {
-                    "case_id": case_data["case_id"],
-                    "before_content": case_data["original_content"],
+                    "case_id": str(case_data["_id"]),
+                    "before_content": case_data.get("content", ""),
                     "after_content": processed_content,
                     "applied_rules": applied_rules,
                     "metadata": metadata
