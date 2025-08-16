@@ -170,21 +170,27 @@ class OpenAIService:
 2. 발견된 문제점들을 errors 배열에 나열하세요
 3. **전처리된 텍스트를 분석하여 개선 가능한 패턴을 찾아 제안하세요**
 
-**개선 제안 생성 (노이즈 제거 전용):**
-- **노이즈 제거에만 집중한 개선 패턴을 제안하세요**
-- **중요: 사실관계나 법적 내용은 절대 변경하지 마세요 (2단계에서 처리)**
-- 다음과 같은 **노이즈 제거** 개선점만 찾아 제안하세요:
-  * UI 요소 제거 (저장, 인쇄, 보관, 검색, 닫기 등)
-  * 시스템 메뉴 제거 (PDF로 보기, Tip1, Tip2 등)
-  * 중복 표시 정보 (동일한 법원명, 사건번호의 반복)
-  * 페이지 번호, 구분선, 공백 등 구조적 노이즈
-  * 불필요한 참조 정보 (빈 판례 목록 등)
-  
-**절대 제안하지 말 것:**
-  * 사실관계 축약이나 요약
-  * 법적 내용의 간소화
-  * 판결 내용의 변경
-  * 중요한 정보의 제거나 축약
+**개선 제안 생성 (사실관계 추출용 노이즈 제거):**
+- **사실관계만 남기고 나머지는 모두 노이즈로 제거하는 패턴을 제안하세요**
+- **목표: 순수한 사실관계만 추출하여 2단계 처리에 전달**
+- 다음과 같은 **노이즈 제거** 개선점을 찾아 제안하세요:
+
+**제거해야 할 노이즈:**
+  * UI 요소 (저장, 인쇄, 보관, 검색, 닫기 등)
+  * 시스템 메뉴 (PDF로 보기, Tip1, Tip2 등)
+  * 법적 판단이나 결론 ("따라서", "그러므로", "판단한다" 등)
+  * 법리 해석이나 법적 추론 
+  * 판례 인용이나 법조문 해석
+  * 법원의 의견이나 판단 과정
+  * 절차적 설명 (변론, 심리, 판결 과정 등)
+  * 중복 표시 정보 (법원명, 사건번호 반복)
+  * 구조적 노이즈 (페이지 번호, 구분선 등)
+
+**보존해야 할 사실관계:**
+  * 당사자 정보 (누가)
+  * 사건 발생 경위 (언제, 어디서, 무엇을)
+  * 구체적 행위나 사건 (어떻게)
+  * 객관적 사실이나 증거
 
 **평가 기준:**
 1. NRR (Noise Reduction Rate): 불필요한 문구 제거율 (0-1)
@@ -211,21 +217,30 @@ class OpenAIService:
     ],
     "suggestions": [
         {{
-            "description": "문서 관리 UI 요소 제거",
+            "description": "법적 판단 결론 제거",
             "confidence_score": 0.90,
+            "rule_type": "legal_filtering",
+            "estimated_improvement": "법적 판단 제거로 사실관계만 추출",
+            "applicable_cases": ["모든 문서"],
+            "pattern_before": "따라서.*?판단한다|그러므로.*?인정된다|결론적으로.*?본다",
+            "pattern_after": ""
+        }},
+        {{
+            "description": "법리 해석 내용 제거",
+            "confidence_score": 0.85,
+            "rule_type": "legal_filtering", 
+            "estimated_improvement": "법리 해석 제거로 사실관계만 추출",
+            "applicable_cases": ["모든 문서"],
+            "pattern_before": "법리상.*?해석|법적으로.*?판단|이 법원은.*?본다",
+            "pattern_after": ""
+        }},
+        {{
+            "description": "UI 요소 제거",
+            "confidence_score": 0.88,
             "rule_type": "noise_removal",
             "estimated_improvement": "UI 노이즈 제거로 3-5% 간소화",
             "applicable_cases": ["모든 문서"],
             "pattern_before": "저장 인쇄 보관 전자팩스 공유 화면내 검색 조회 닫기",
-            "pattern_after": ""
-        }},
-        {{
-            "description": "빈 참조 정보 제거",
-            "confidence_score": 0.85,
-            "rule_type": "noise_removal", 
-            "estimated_improvement": "불필요한 참조 정보 제거로 1-2% 간소화",
-            "applicable_cases": ["모든 문서"],
-            "pattern_before": "참조판례 0 건 인용판례 0 건",
             "pattern_after": ""
         }}
     ]
