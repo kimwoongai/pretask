@@ -170,25 +170,15 @@ class OpenAIService:
 2. 발견된 문제점들을 errors 배열에 나열하세요
 3. **전처리된 텍스트를 분석하여 개선 가능한 패턴을 찾아 제안하세요**
 
-**개선 제안 생성 기준:**
-- **항상 1-2개의 개선 제안을 생성하세요** (품질이 우수해도)
-- **NRR < 0.9**: 제거되지 않은 노이즈 패턴이 명확히 보이는 경우
-- **ICR < 0.95**: 중요한 내용이 잘못 제거된 경우  
-- **SS < 0.9**: 의미가 크게 왜곡된 경우
-- **Token reduction < 15%**: 전처리 효과가 부족한 경우
-- **추가 최적화 기회**: 품질이 좋아도 더 나은 패턴이 보이는 경우
-
-**개선 제안 유형 (우선순위 순):**
-1. **중복 정보 제거**: 반복되는 법원명, 사건번호, 날짜 패턴
-2. **참조 정보 간소화**: 판례 인용, 법조문 참조 축약
-3. **구조적 노이즈**: 페이지 번호, 구분선, 메뉴 항목
-4. **형식적 표현 통합**: 유사한 의미의 다양한 표현 정규화
-5. **불필요한 상세정보**: 과도한 절차적 설명, 기술적 안내
-
-**품질별 제안 개수:**
-- **우수 (모든 지표 기준 충족)**: 1-2개 최적화 제안
-- **보통 (일부 지표 미달)**: 2-3개 구체적 개선 제안  
-- **부족 (여러 지표 미달)**: 3-4개 상세한 개선 제안
+**개선 제안 생성:**
+- **반드시 1-3개의 구체적인 개선 제안을 생성하세요**
+- 전처리된 텍스트에서 개선 가능한 패턴을 찾아 제안하세요
+- 다음과 같은 개선점을 찾아보세요:
+  * 중복되는 정보 (법원명, 사건번호, 날짜 등)
+  * 복잡한 참조 정보 (판례 인용, 법조문 참조)
+  * 불필요한 구조적 요소 (페이지 번호, 구분선 등)
+  * 형식적 표현의 정규화 기회
+  * 과도한 상세 정보나 설명
 
 **평가 기준:**
 1. NRR (Noise Reduction Rate): 불필요한 문구 제거율 (0-1)
@@ -196,6 +186,8 @@ class OpenAIService:
 3. SS (Semantic Similarity): 의미 유사성 유지 정도 (0-1)
 4. 토큰 절감률: 전처리로 인한 토큰 수 감소 비율 (%)
 5. parsing_errors: 파싱 과정에서 발생한 오류 개수
+
+**중요: suggestions 배열에는 반드시 1-3개의 제안이 포함되어야 합니다. 빈 배열로 두지 마세요.**
 
 반드시 다음 JSON 형식으로만 응답하세요:
 
@@ -213,31 +205,22 @@ class OpenAIService:
     ],
     "suggestions": [
         {{
-            "description": "법조문 참조 표현 정규화 및 간소화",
+            "description": "중복 법원명 정보 통합",
             "confidence_score": 0.85,
-            "rule_type": "legal_filtering",
-            "estimated_improvement": "2-3% 법리 내용 간소화",
-            "applicable_cases": ["민사", "행정"],
-            "pattern_before": "민사소송법 제\\d+조 제\\d+항",
-            "pattern_after": "민법 제○조"
+            "rule_type": "noise_removal",
+            "estimated_improvement": "법원명 중복 제거로 2-3% 간소화",
+            "applicable_cases": ["모든 문서"],
+            "pattern_before": "서울행정법원.*?서울고등법원.*?대법원",
+            "pattern_after": "대법원"
         }},
         {{
             "description": "판례 인용 정보 축약",
-            "confidence_score": 0.78,
-            "rule_type": "noise_removal", 
-            "estimated_improvement": "1-2% 참조 정보 간소화",
+            "confidence_score": 0.80,
+            "rule_type": "legal_filtering", 
+            "estimated_improvement": "판례 참조 간소화로 1-2% 축약",
             "applicable_cases": ["대법원", "고등법원"],
-            "pattern_before": "\\(대법원 \\d{{4}}\\. \\d{{1,2}}\\. \\d{{1,2}}\\. 선고[^)]+\\)",
-            "pattern_after": "(판례 참조)"
-        }},
-        {{
-            "description": "중복 표현 통합",
-            "confidence_score": 0.82,
-            "rule_type": "regex_improvement",
-            "estimated_improvement": "1-2% 중복 제거",
-            "applicable_cases": ["모든 문서"],
-            "pattern_before": "소송구조.*?소송구조",
-            "pattern_after": "소송구조"
+            "pattern_before": "\\d{{4}}\\. \\d{{1,2}}\\. \\d{{1,2}}\\. 선고 \\d{{4}}[가-힣]+\\d+ 판결",
+            "pattern_after": "판례"
         }}
     ]
 }}
