@@ -46,9 +46,40 @@ class DocumentCase(BaseModel):
     updated_at: Optional[datetime] = None
 
 
+class ProcessedPrecedent(BaseModel):
+    """전처리된 판례 데이터"""
+    original_id: str = Field(description="원본 precedents_v2의 _id")
+    precedent_id: str = Field(description="판례 ID")
+    case_name: str = Field(description="사건명")
+    case_number: str = Field(description="사건번호")
+    court_name: str = Field(description="법원명")
+    court_type: str = Field(description="법원 유형")
+    decision_date: Optional[str] = Field(description="판결일")
+    
+    # 전처리된 내용
+    processed_content: str = Field(description="전처리된 내용")
+    content_length: int = Field(description="전처리된 내용 길이")
+    
+    # 처리 정보
+    rules_version: str = Field(description="사용된 규칙 버전")
+    processing_mode: str = Field(description="처리 모드 (single/batch/full)")
+    processing_time_ms: int = Field(description="처리 시간")
+    token_count_before: int = Field(description="처리 전 토큰 수")
+    token_count_after: int = Field(description="처리 후 토큰 수")
+    token_reduction_percent: float = Field(description="토큰 감소율")
+    
+    # 품질 정보
+    quality_score: float = Field(description="품질 점수")
+    status: str = Field(description="처리 상태", default="completed")
+    
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 class ProcessingResult(BaseModel):
-    """처리 결과"""
+    """처리 결과 (메트릭 및 분석용)"""
     case_id: str
+    original_id: str = Field(description="원본 precedents_v2의 _id")
     rules_version: str = Field(description="사용된 규칙 버전")
     metrics: QualityMetrics
     before_content: str

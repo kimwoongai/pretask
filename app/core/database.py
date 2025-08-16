@@ -77,35 +77,31 @@ class DatabaseManager:
 
 
 class DocumentRepository:
-    """문서 케이스 저장소"""
+    """원본 문서 저장소 (precedents_v2 - 읽기 전용)"""
     
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
-        self.collection_name = "document_cases"
-    
-    async def save_case(self, case_data: Dict[str, Any]) -> str:
-        """케이스 저장"""
-        collection = self.db_manager.get_collection(self.collection_name)
-        if collection:
-            result = await collection.insert_one(case_data)
-            return str(result.inserted_id)
-        else:
-            # 데모 모드: 더미 ID 반환
-            return f"demo_{case_data.get('case_id', 'unknown')}"
+        self.collection_name = "precedents_v2"  # 원본 데이터는 읽기만
     
     async def get_case(self, case_id: str) -> Optional[Dict[str, Any]]:
-        """케이스 조회"""
+        """원본 케이스 조회 (읽기 전용)"""
         collection = self.db_manager.get_collection(self.collection_name)
-        return await collection.find_one({"case_id": case_id})
+        if collection:
+            from bson import ObjectId
+            # ObjectId로 조회 시도
+            if ObjectId.is_valid(case_id):
+                return await collection.find_one({"_id": ObjectId(case_id)})
+            # precedent_id로 조회 시도
+            return await collection.find_one({"precedent_id": case_id})
+        return None
     
-    async def update_case(self, case_id: str, update_data: Dict[str, Any]) -> bool:
-        """케이스 업데이트"""
+    async def get_cases_sample(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """케이스 샘플 조회"""
         collection = self.db_manager.get_collection(self.collection_name)
-        result = await collection.update_one(
-            {"case_id": case_id},
-            {"$set": update_data}
-        )
-        return result.modified_count > 0
+        if collection:
+            cursor = collection.aggregate([{"$sample": {"size": limit}}])
+            return await cursor.to_list(length=limit)
+        return []
     
     async def get_stratified_sample(self, criteria: Dict[str, Any], limit: int) -> List[Dict[str, Any]]:
         """층화 샘플링"""
@@ -140,6 +136,100 @@ class DocumentRepository:
         
         cursor = collection.aggregate(pipeline)
         return await cursor.to_list(length=None)
+
+
+class ProcessedPrecedentRepository:
+    """전처리된 판례 저장소"""
+    
+    def __init__(self, db_manager: DatabaseManager):
+        self.db_manager = db_manager
+        self.collection_name = "processed_precedents"
+    
+    async def save_processed_case(self, processed_data: Dict[str, Any]) -> str:
+        """전처리된 케이스 저장"""
+        collection = self.db_manager.get_collection(self.collection_name)
+        if collection:
+            result = await collection.insert_one(processed_data)
+            return str(result.inserted_id)
+        else:
+            # 데모 모드: 더미 ID 반환
+            return f"processed_{processed_data.get('original_id', 'unknown')}"
+    
+    async def get_processed_case(self, original_id: str, rules_version: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """전처리된 케이스 조회"""
+        collection = self.db_manager.get_collection(self.collection_name)
+        if collection:
+            query = {"original_id": original_id}
+            if rules_version:
+                query["rules_version"] = rules_version
+            # 최신 버전 우선
+            return await collection.find_one(query, sort=[("created_at", -1)])
+        return None
+    
+    async def get_processed_cases(
+        self, 
+        limit: int = 50, 
+        offset: int = 0, 
+        rules_version: Optional[str] = None,
+        status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """전처리된 케이스 목록 조회"""
+        collection = self.db_manager.get_collection(self.collection_name)
+        if collection:
+            query = {}
+            if rules_version:
+                query["rules_version"] = rules_version
+            if status:
+                query["status"] = status
+            
+            cursor = collection.find(query).skip(offset).limit(limit).sort("created_at", -1)
+            return await cursor.to_list(length=limit)
+        return []
+    
+    async def update_processed_case(self, processed_id: str, update_data: Dict[str, Any]) -> bool:
+        """전처리된 케이스 업데이트"""
+        collection = self.db_manager.get_collection(self.collection_name)
+        if collection:
+            from bson import ObjectId
+            result = await collection.update_one(
+                {"_id": ObjectId(processed_id)},
+                {"$set": {**update_data, "updated_at": datetime.now()}}
+            )
+            return result.modified_count > 0
+        return False
+    
+    async def get_processing_stats(self, rules_version: Optional[str] = None) -> Dict[str, Any]:
+        """처리 통계 조회"""
+        collection = self.db_manager.get_collection(self.collection_name)
+        if collection:
+            match_query = {}
+            if rules_version:
+                match_query["rules_version"] = rules_version
+            
+            pipeline = [
+                {"$match": match_query},
+                {"$group": {
+                    "_id": "$status",
+                    "count": {"$sum": 1},
+                    "avg_quality_score": {"$avg": "$quality_score"},
+                    "avg_token_reduction": {"$avg": "$token_reduction_percent"}
+                }}
+            ]
+            
+            cursor = collection.aggregate(pipeline)
+            results = await cursor.to_list(length=None)
+            
+            stats = {"total": 0, "by_status": {}}
+            for result in results:
+                stats["by_status"][result["_id"]] = {
+                    "count": result["count"],
+                    "avg_quality_score": result.get("avg_quality_score", 0),
+                    "avg_token_reduction": result.get("avg_token_reduction", 0)
+                }
+                stats["total"] += result["count"]
+            
+            return stats
+        return {"total": 0, "by_status": {}}
 
 
 class ProcessingResultRepository:
