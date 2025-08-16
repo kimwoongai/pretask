@@ -41,10 +41,15 @@ class OpenAIService:
             )
             
             result_text = response.choices[0].message.content
+            logger.info(f"OpenAI raw response: {result_text}")
             return self._parse_evaluation_result(result_text, before_content, after_content)
             
         except Exception as e:
             logger.error(f"Failed to evaluate case: {e}")
+            logger.error(f"OpenAI API key (first 20 chars): {settings.openai_api_key[:20] if settings.openai_api_key else 'None'}")
+            logger.error(f"OpenAI model: {self.model}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             raise
     
     async def evaluate_batch_cases(
@@ -237,9 +242,10 @@ class OpenAIService:
             
         except Exception as e:
             logger.error(f"Failed to parse evaluation result: {e}")
+            logger.error(f"Raw result text: {result_text}")
             # 기본값 반환
             metrics = QualityMetrics(nrr=0.0, fpr=0.0, ss=0.0, token_reduction=0.0)
-            return metrics, ["파싱 오류"], []
+            return metrics, [f"파싱 오류: {str(e)}"], []
     
     def _parse_improvement_suggestion(
         self, 
