@@ -93,16 +93,27 @@ async def process_single_case(case_id: str):
         
         # OpenAI API 키 확인
         if not settings.openai_api_key:
+            logger.error("OpenAI API key not set")
             raise HTTPException(
                 status_code=503,
                 detail="OpenAI API key not configured. Please set OPENAI_API_KEY environment variable."
             )
         
         logger.info(f"Using real OpenAI API for case {case_id}")
+        logger.info(f"OpenAI API key configured: {settings.openai_api_key[:20]}...")
         
         # 실제 AI 평가 사용
-        from app.services.openai_service import OpenAIService
-        openai_service = OpenAIService()
+        try:
+            from app.services.openai_service import OpenAIService
+            logger.info("Initializing OpenAI service...")
+            openai_service = OpenAIService()
+            logger.info("OpenAI service initialized successfully")
+        except Exception as openai_error:
+            logger.error(f"Failed to initialize OpenAI service: {openai_error}")
+            raise HTTPException(
+                status_code=503,
+                detail=f"OpenAI service initialization failed: {str(openai_error)}"
+            )
         
         # 간단한 전처리 먼저 적용
         processed_content = original_content
@@ -123,9 +134,20 @@ async def process_single_case(case_id: str):
             "decision_date": document.get("decision_date", "")
         }
         
-        metrics, errors, suggestions = await openai_service.evaluate_single_case(
-            original_content, processed_content, case_metadata
-        )
+        # OpenAI API 호출
+        try:
+            logger.info("Starting OpenAI evaluation...")
+            metrics, errors, suggestions = await openai_service.evaluate_single_case(
+                original_content, processed_content, case_metadata
+            )
+            logger.info("OpenAI evaluation completed successfully")
+        except Exception as eval_error:
+            logger.error(f"OpenAI evaluation failed: {eval_error}")
+            # OpenAI 실패 시 기본값 반환
+            from app.models.document import QualityMetrics
+            metrics = QualityMetrics(nrr=0.0, fpr=0.0, ss=0.0, token_reduction=0.0)
+            errors = [f"AI evaluation failed: {str(eval_error)}"]
+            suggestions = []
         
         # 실제 AI 평가 결과 사용
         passed = len(errors) == 0
@@ -191,15 +213,15 @@ async def process_single_case(case_id: str):
             }
             
             # cases 컬렉션에 저장 (upsert 사용 - 이미 있으면 업데이트, 없으면 생성)
-            result = await cases_collection.update_one(
+            update_result = await cases_collection.update_one(
                 {"original_id": str(document["_id"])},
                 {"$set": case_data},
                 upsert=True
             )
             
-            if result.upserted_id:
-                logger.info(f"Created new case record for {case_id}: {result.upserted_id}")
-            elif result.modified_count > 0:
+            if update_result.upserted_id:
+                logger.info(f"Created new case record for {case_id}: {update_result.upserted_id}")
+            elif update_result.modified_count > 0:
                 logger.info(f"Updated existing case record for {case_id}")
             else:
                 logger.warning(f"No changes made to case record for {case_id}")
@@ -208,14 +230,38 @@ async def process_single_case(case_id: str):
             logger.error(f"Failed to save processing results to cases collection for {case_id}: {save_error}")
             # 저장 실패해도 결과는 반환
         
+        # 처리 결과 반환
+        result = {
+            "case_id": case_id,
+            "original_id": str(document["_id"]),
+            "precedent_id": document.get("precedent_id", ""),
+            "case_name": document.get("case_name", ""),
+            "processing_time_ms": processing_time_ms,
+            "token_count_before": token_count_before,
+            "token_count_after": token_count_after,
+            "token_reduction_percent": metrics.token_reduction,
+            "quality_score": (metrics.nrr + metrics.fpr + metrics.ss) / 3.0,
+            "nrr": metrics.nrr,
+            "fpr": metrics.fpr,
+            "ss": metrics.ss,
+            "passed": passed,
+            "errors": errors,
+            "suggestions": suggestions,
+            "applied_rules": ["page_number_removal", "separator_removal", "whitespace_normalization"],
+            "status": "completed"
+        }
+        
         return result
 
         
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
         logger.error(f"Failed to process case {case_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Full traceback: {error_details}")
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 
 
