@@ -299,10 +299,15 @@ class DSLRuleManager:
     def _save_to_mongodb(self, data: Dict[str, Any] = None) -> bool:
         """MongoDB에 규칙 저장"""
         try:
+            print(f"🔧 DEBUG: MongoDB 저장 시작 - 컬렉션: {self.collection_name}")
+            
             from app.core.database import db_manager
             
             collection = db_manager.get_collection(self.collection_name)
+            print(f"🔧 DEBUG: 컬렉션 객체: {collection}")
+            
             if collection is None:
+                print(f"🔧 ERROR: 컬렉션을 가져올 수 없음: {self.collection_name}")
                 return False
             
             if data is None:
@@ -312,26 +317,45 @@ class DSLRuleManager:
                     'rules': [rule.to_dict() for rule in self.rules.values()]
                 }
             
+            print(f"🔧 DEBUG: 저장할 데이터 준비 완료 - 버전: {data['version']}, 규칙 수: {len(data['rules'])}")
+            
             # 비동기 저장
             import asyncio
             
             async def save_async():
-                # 기존 규칙 삭제 후 새로 저장 (upsert)
-                await collection.delete_many({})  # 기존 규칙 모두 삭제
-                result = await collection.insert_one(data)
-                return result.inserted_id is not None
+                try:
+                    print(f"🔧 DEBUG: 비동기 저장 시작...")
+                    
+                    # 기존 규칙 삭제 후 새로 저장 (upsert)
+                    delete_result = await collection.delete_many({})
+                    print(f"🔧 DEBUG: 기존 규칙 삭제 완료 - 삭제된 문서 수: {delete_result.deleted_count}")
+                    
+                    result = await collection.insert_one(data)
+                    print(f"🔧 DEBUG: 새 규칙 삽입 완료 - ID: {result.inserted_id}")
+                    
+                    return result.inserted_id is not None
+                except Exception as e:
+                    print(f"🔧 ERROR: 비동기 저장 중 오류: {e}")
+                    return False
             
             # 동기 함수에서 비동기 호출
             try:
+                print(f"🔧 DEBUG: 이벤트 루프 가져오기 시도...")
                 loop = asyncio.get_event_loop()
+                print(f"🔧 DEBUG: 기존 이벤트 루프 사용")
             except RuntimeError:
+                print(f"🔧 DEBUG: 새 이벤트 루프 생성")
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
             
+            print(f"🔧 DEBUG: 비동기 함수 실행 시작...")
             success = loop.run_until_complete(save_async())
+            print(f"🔧 DEBUG: 비동기 함수 실행 완료 - 결과: {success}")
+            
             return success
             
         except Exception as e:
+            print(f"🔧 ERROR: MongoDB 저장 최종 오류: {e}")
             logger.error(f"MongoDB에 규칙 저장 실패: {e}")
             return False
     
