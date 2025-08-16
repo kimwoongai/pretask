@@ -1474,3 +1474,68 @@ def _select_most_important_sentences(sentences: List[str], target_length: int) -
             break
     
     return selected
+
+
+@router.post("/rules/initialize")
+async def initialize_dsl_rules():
+    """DSL 규칙 시스템 초기화"""
+    try:
+        from app.services.dsl_rules import dsl_manager
+        
+        print("🔧 DEBUG: DSL 규칙 시스템 초기화 시작...")
+        logger.info("DSL 규칙 시스템 초기화 시작...")
+        
+        # 강제로 기본 규칙 생성 및 저장
+        dsl_manager._create_default_rules()
+        dsl_manager.save_rules()
+        
+        # 성능 리포트 생성
+        performance_report = dsl_manager.get_performance_report()
+        
+        print(f"🔧 DEBUG: DSL 규칙 초기화 완료 - {performance_report['total_rules']}개 규칙 생성")
+        logger.info(f"DSL 규칙 초기화 완료: {performance_report}")
+        
+        return {
+            "status": "success",
+            "message": "DSL 규칙 시스템이 초기화되었습니다",
+            "performance_report": performance_report,
+            "rules_file": str(dsl_manager.rules_file)
+        }
+        
+    except Exception as e:
+        error_msg = f"DSL 규칙 초기화 실패: {str(e)}"
+        print(f"🔧 ERROR: {error_msg}")
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+@router.get("/rules/dsl/status")
+async def get_dsl_status():
+    """DSL 규칙 시스템 상태 조회"""
+    try:
+        from app.services.dsl_rules import dsl_manager
+        from app.services.auto_patch_engine import auto_patch_engine
+        
+        # DSL 매니저 상태
+        performance_report = dsl_manager.get_performance_report()
+        
+        # 패치 히스토리
+        patch_history = auto_patch_engine.get_patch_history()
+        
+        return {
+            "dsl_system": {
+                "status": "active",
+                "rules_file": str(dsl_manager.rules_file),
+                "rules_file_exists": dsl_manager.rules_file.exists(),
+                "performance_report": performance_report
+            },
+            "auto_patch": {
+                "status": "active", 
+                "patch_count": len(patch_history),
+                "recent_patches": patch_history[-5:] if patch_history else []
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"DSL 상태 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"DSL 상태 조회 실패: {str(e)}")
