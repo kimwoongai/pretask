@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     
     # Database - Render 환경에서는 환경 변수로 자동 설정됨
     mongodb_url: str = Field(default="mongodb://localhost:27017", env="MONGODB_URL")
-    mongodb_db: str = Field(default="document_processor", env="MONGODB_DB")
+    mongodb_db: str = Field(default="legal_db", env="MONGODB_DB")
     redis_url: str = Field(default="redis://localhost:6379", env="REDIS_URL")
     
     # OpenAI API

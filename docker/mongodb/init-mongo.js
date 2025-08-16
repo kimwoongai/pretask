@@ -1,5 +1,5 @@
 // MongoDB 초기화 스크립트
-db = db.getSiblingDB('document_processor');
+db = db.getSiblingDB('legal_db');
 
 // 사용자 생성
 db.createUser({
@@ -8,7 +8,7 @@ db.createUser({
     roles: [
         {
             role: 'readWrite',
-            db: 'document_processor'
+            db: 'legal_db'
         }
     ]
 });

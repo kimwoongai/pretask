@@ -85,7 +85,7 @@ class DatabaseManager:
     
     def get_collection(self, collection_name: str) -> Optional[AsyncIOMotorCollection]:
         """MongoDB 컬렉션 반환"""
-        if not self.mongo_db:
+        if self.mongo_db is None:
             logger.warning("MongoDB not available, returning None")
             return None
         return self.mongo_db[collection_name]
