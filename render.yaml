@@ -4,7 +4,7 @@ services:
     env: python
     runtime: python-3.11.8
     buildCommand: ./render-build.sh
-    startCommand: python3.11 run.py || python run.py
+    startCommand: bash -c "source .venv/bin/activate 2>/dev/null && python run.py || python3.11 run.py || python run.py"
     plan: starter
     healthCheckPath: /
     envVars:

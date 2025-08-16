@@ -41,15 +41,37 @@ fi
 echo "Using Python command: $PYTHON_CMD"
 echo "Python version: $($PYTHON_CMD --version)"
 
-# Update pip to latest version
-$PYTHON_CMD -m pip install --upgrade pip setuptools wheel
-
-# Set environment variables for better compatibility
-export PIP_NO_CACHE_DIR=1
-export PIP_DISABLE_PIP_VERSION_CHECK=1
-
-# Install dependencies
-$PYTHON_CMD -m pip install --no-cache-dir -r requirements.txt
+# Try to create and use virtual environment first
+echo "Attempting to create virtual environment..."
+if $PYTHON_CMD -m venv .venv 2>/dev/null; then
+    echo "Virtual environment created successfully"
+    source .venv/bin/activate
+    export PYTHON_CMD=python
+    echo "Using virtual environment Python: $(python --version)"
+    
+    # Update pip in virtual environment
+    python -m pip install --upgrade pip setuptools wheel
+    
+    # Set environment variables for better compatibility
+    export PIP_NO_CACHE_DIR=1
+    export PIP_DISABLE_PIP_VERSION_CHECK=1
+    
+    # Install dependencies in virtual environment
+    python -m pip install --no-cache-dir -r requirements.txt
+    
+else
+    echo "Virtual environment creation failed, trying with --break-system-packages..."
+    
+    # Update pip to latest version (with system packages flag)
+    $PYTHON_CMD -m pip install --upgrade pip setuptools wheel --break-system-packages
+    
+    # Set environment variables for better compatibility
+    export PIP_NO_CACHE_DIR=1
+    export PIP_DISABLE_PIP_VERSION_CHECK=1
+    
+    # Install dependencies (with system packages flag)
+    $PYTHON_CMD -m pip install --no-cache-dir --break-system-packages -r requirements.txt
+fi
 
 # Create necessary directories
 mkdir -p logs
