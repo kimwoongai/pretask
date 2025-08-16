@@ -319,7 +319,7 @@ class AutoPatchEngine:
             return False
     
     def auto_apply_patches(self, patches: List[PatchSuggestion], 
-                          auto_apply_threshold: float = 0.85) -> Dict[str, Any]:
+                          auto_apply_threshold: float = 0.7) -> Dict[str, Any]:
         """자동 패치 적용 (신뢰도 기준)"""
         results = {
             'total_patches': len(patches),
