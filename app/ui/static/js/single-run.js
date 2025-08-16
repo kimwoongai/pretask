@@ -177,14 +177,14 @@ function displayProcessingResult(result) {
         `;
     } else {
         resultAlert.className = 'alert alert-warning';
-        const failedGates = result.quality_gates.failing_metrics || {};
-        const failedList = Object.keys(failedGates).join(', ');
+        const errors = result.errors || [];
+        const errorList = errors.join(', ');
         
         resultMessage.innerHTML = `
             <i class="fas fa-exclamation-triangle me-2"></i>
             <strong>불합격</strong> 품질 게이트를 통과하지 못했습니다.
             <div class="mt-2">
-                <small>실패한 지표: ${failedList}</small>
+                <small>오류: ${errorList}</small>
             </div>
         `;
     }
