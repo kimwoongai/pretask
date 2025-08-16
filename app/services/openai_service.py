@@ -172,7 +172,8 @@ class OpenAIService:
 4. 토큰 절감률: (전처리 전 토큰 수 - 전처리 후 토큰 수) ÷ 전처리 전 토큰 수 × 100 (%)
 5. parsing_errors: 파싱 과정에서 발생한 오류 개수
 
-다음 JSON 형식으로 응답해주세요:
+반드시 다음 JSON 형식으로만 응답하세요. 설명이나 추가 텍스트 없이 순수 JSON만 반환해주세요:
+
 {{
     "metrics": {{
         "nrr": 0.95,
@@ -233,7 +234,23 @@ class OpenAIService:
         
         try:
             print(f"🔍 DEBUG: Attempting to parse JSON: {result_text}")
-            result_data = json.loads(result_text)
+            
+            # JSON 부분만 추출 (```json과 ``` 사이의 내용)
+            json_text = result_text
+            if "```json" in result_text:
+                start = result_text.find("```json") + 7
+                end = result_text.find("```", start)
+                if end != -1:
+                    json_text = result_text[start:end].strip()
+                    print(f"🔍 DEBUG: Extracted JSON: {json_text}")
+            elif "{" in result_text and "}" in result_text:
+                # JSON 마커가 없는 경우, 첫 번째 { 부터 마지막 } 까지 추출
+                start = result_text.find("{")
+                end = result_text.rfind("}") + 1
+                json_text = result_text[start:end].strip()
+                print(f"🔍 DEBUG: Extracted JSON (fallback): {json_text}")
+            
+            result_data = json.loads(json_text)
             
             metrics = QualityMetrics(
                 nrr=result_data["metrics"]["nrr"],
