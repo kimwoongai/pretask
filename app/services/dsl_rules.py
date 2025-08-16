@@ -141,30 +141,32 @@ class DSLRuleManager:
             self._create_default_rules()
     
     def _load_from_mongodb(self) -> bool:
-        """MongoDB에서 규칙 로드"""
+        """MongoDB에서 규칙 로드 (동기식 클라이언트 사용)"""
         try:
-            from app.core.database import db_manager
+            print(f"🔧 DEBUG: MongoDB 기본 규칙 로드 시작...")
             
-            collection = db_manager.get_collection(self.collection_name)
-            if collection is None:
+            # 동기식 pymongo 클라이언트 사용
+            import pymongo
+            import os
+            
+            mongodb_url = os.getenv('MONGODB_URL')
+            if not mongodb_url:
+                print(f"🔧 ERROR: MONGODB_URL 환경변수가 없음")
                 return False
             
+            print(f"🔧 DEBUG: 동기식 MongoDB 클라이언트 연결 시도...")
+            
+            # 동기식 클라이언트로 직접 연결
+            client = pymongo.MongoClient(mongodb_url)
+            db = client[os.getenv('MONGODB_DB', 'legal_db')]
+            collection = db[self.collection_name]
+            
+            print(f"🔧 DEBUG: 기본 규칙 컬렉션 연결 성공: {self.collection_name}")
+            
             # 최신 버전의 규칙 조회
-            import asyncio
+            documents = list(collection.find().sort("updated_at", -1).limit(1))
             
-            async def load_async():
-                cursor = collection.find().sort("updated_at", -1).limit(1)
-                documents = await cursor.to_list(length=1)
-                return documents
-            
-            # 동기 함수에서 비동기 호출
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            documents = loop.run_until_complete(load_async())
+            print(f"🔧 DEBUG: 기본 규칙 문서 조회 결과: {len(documents)}개")
             
             if documents:
                 data = documents[0]
@@ -182,14 +184,21 @@ class DSLRuleManager:
                 individual_count = self._load_individual_rules_from_mongodb()
                 print(f"🔧 DEBUG: 개별 규칙 로드 완료: {individual_count}개")
                 
+                # 연결 종료
+                client.close()
                 return True
             else:
+                print(f"🔧 DEBUG: 기본 규칙 문서 없음")
                 # 기본 규칙이 없어도 개별 규칙은 로드 시도
                 individual_count = self._load_individual_rules_from_mongodb()
                 print(f"🔧 DEBUG: 기본 규칙 없음, 개별 규칙만 로드: {individual_count}개")
+                
+                # 연결 종료
+                client.close()
                 return individual_count > 0
             
         except Exception as e:
+            print(f"🔧 ERROR: MongoDB 기본 규칙 로드 실패: {e}")
             logger.error(f"MongoDB에서 규칙 로드 실패: {e}")
             return False
     
