@@ -133,9 +133,18 @@ class BatchProcessor:
         
         try:
             # MongoDB에서 케이스 조회
+            print(f"🔍 DEBUG: MongoDB 컬렉션 가져오기 시도...")
+            print(f"🔍 DEBUG: db_manager 객체: {type(db_manager)}")
+            print(f"🔍 DEBUG: db_manager 상태: {hasattr(db_manager, 'get_collection')}")
+            
             collection = db_manager.get_collection('cases')
-            if not collection:
+            print(f"🔍 DEBUG: 컬렉션 객체: {type(collection)}")
+            print(f"🔍 DEBUG: 컬렉션 None 여부: {collection is None}")
+            
+            if collection is None:
                 raise Exception("cases 컬렉션을 찾을 수 없습니다")
+            
+            print(f"✅ DEBUG: cases 컬렉션 연결 성공")
             
             # 층화 샘플링 (간단한 버전)
             pipeline = [
@@ -143,8 +152,11 @@ class BatchProcessor:
                 {"$sample": {"size": sample_size}}
             ]
             
+            print(f"🔍 DEBUG: 집계 파이프라인 실행 중...")
             cursor = collection.aggregate(pipeline)
             cases = await cursor.to_list(length=sample_size)
+            
+            print(f"✅ DEBUG: MongoDB에서 {len(cases)}개 케이스 조회 완료")
             
             # 케이스 데이터 변환
             sample_cases = []
@@ -174,6 +186,8 @@ class BatchProcessor:
             
         except Exception as e:
             print(f"❌ DEBUG: 샘플 선정 실패: {e}")
+            print(f"❌ DEBUG: 오류 타입: {type(e)}")
+            print(f"❌ DEBUG: 오류 상세: {str(e)}")
             logger.error(f"샘플 선정 실패: {e}")
             raise
     
