@@ -1497,9 +1497,10 @@ async def initialize_dsl_rules():
         
         return {
             "status": "success",
-            "message": "DSL 규칙 시스템이 초기화되었습니다",
+            "message": "DSL 규칙 시스템이 MongoDB에 초기화되었습니다",
             "performance_report": performance_report,
-            "rules_file": str(dsl_manager.rules_file)
+            "storage": "MongoDB",
+            "collection": dsl_manager.collection_name
         }
         
     except Exception as e:
@@ -1525,8 +1526,8 @@ async def get_dsl_status():
         return {
             "dsl_system": {
                 "status": "active",
-                "rules_file": str(dsl_manager.rules_file),
-                "rules_file_exists": dsl_manager.rules_file.exists(),
+                "storage": "MongoDB",
+                "collection": dsl_manager.collection_name,
                 "performance_report": performance_report
             },
             "auto_patch": {

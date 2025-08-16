@@ -5,10 +5,8 @@ DSL 규칙 파일 관리 시스템
 
 import re
 import json
-import yaml
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
-from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
@@ -114,29 +112,23 @@ class DSLRule:
 
 
 class DSLRuleManager:
-    """DSL 규칙 관리자"""
+    """DSL 규칙 관리자 - MongoDB 전용"""
     
-    def __init__(self, rules_file: str = "app/data/dsl_rules.yaml"):
-        self.rules_file = Path(rules_file)
+    def __init__(self):
         self.rules: Dict[str, DSLRule] = {}
         self.version = "1.0.0"
+        self.collection_name = "dsl_rules"
         self.load_rules()
     
     def load_rules(self):
-        """규칙 파일 로드"""
+        """MongoDB에서 규칙 로드"""
         try:
-            if self.rules_file.exists():
-                with open(self.rules_file, 'r', encoding='utf-8') as f:
-                    data = yaml.safe_load(f)
-                    self.version = data.get('version', '1.0.0')
-                    rules_data = data.get('rules', [])
-                    
-                    for rule_data in rules_data:
-                        rule = DSLRule.from_dict(rule_data)
-                        self.rules[rule.rule_id] = rule
-                    
-                    logger.info(f"DSL 규칙 로드 완료: {len(self.rules)}개 규칙 (버전 {self.version})")
+            # MongoDB에서 로드 시도
+            if self._load_from_mongodb():
+                logger.info(f"DSL 규칙 MongoDB 로드 완료: {len(self.rules)}개 규칙 (버전 {self.version})")
+                return
             else:
+                logger.info("MongoDB에 기존 규칙 없음, 기본 규칙 생성...")
                 # 기본 규칙 생성
                 self._create_default_rules()
                 self.save_rules()
@@ -144,6 +136,50 @@ class DSLRuleManager:
         except Exception as e:
             logger.error(f"DSL 규칙 로드 실패: {e}")
             self._create_default_rules()
+    
+    def _load_from_mongodb(self) -> bool:
+        """MongoDB에서 규칙 로드"""
+        try:
+            from app.core.database import db_manager
+            
+            collection = db_manager.get_collection(self.collection_name)
+            if collection is None:
+                return False
+            
+            # 최신 버전의 규칙 조회
+            import asyncio
+            
+            async def load_async():
+                cursor = collection.find().sort("updated_at", -1).limit(1)
+                documents = await cursor.to_list(length=1)
+                return documents
+            
+            # 동기 함수에서 비동기 호출
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            documents = loop.run_until_complete(load_async())
+            
+            if documents:
+                data = documents[0]
+                self.version = data.get('version', '1.0.0')
+                rules_data = data.get('rules', [])
+                
+                self.rules.clear()
+                for rule_data in rules_data:
+                    rule = DSLRule.from_dict(rule_data)
+                    self.rules[rule.rule_id] = rule
+                
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"MongoDB에서 규칙 로드 실패: {e}")
+            return False
     
     def _create_default_rules(self):
         """기본 규칙 생성"""
@@ -239,11 +275,8 @@ class DSLRuleManager:
             self.rules[rule.rule_id] = rule
     
     def save_rules(self):
-        """규칙 파일 저장"""
+        """MongoDB에 규칙 저장"""
         try:
-            # 디렉토리 생성
-            self.rules_file.parent.mkdir(parents=True, exist_ok=True)
-            
             # 데이터 구성
             data = {
                 'version': self.version,
@@ -251,13 +284,55 @@ class DSLRuleManager:
                 'rules': [rule.to_dict() for rule in self.rules.values()]
             }
             
-            # YAML 파일로 저장
-            with open(self.rules_file, 'w', encoding='utf-8') as f:
-                yaml.dump(data, f, default_flow_style=False, allow_unicode=True, indent=2)
+            # MongoDB에 저장
+            if self._save_to_mongodb(data):
+                logger.info(f"DSL 규칙 MongoDB 저장 완료: {len(self.rules)}개 규칙")
+            else:
+                logger.error("MongoDB 저장 실패!")
+                raise Exception("규칙 저장 실패")
             
-            logger.info(f"DSL 규칙 저장 완료: {len(self.rules)}개 규칙")
         except Exception as e:
             logger.error(f"DSL 규칙 저장 실패: {e}")
+            raise
+    
+    def _save_to_mongodb(self, data: Dict[str, Any] = None) -> bool:
+        """MongoDB에 규칙 저장"""
+        try:
+            from app.core.database import db_manager
+            
+            collection = db_manager.get_collection(self.collection_name)
+            if collection is None:
+                return False
+            
+            if data is None:
+                data = {
+                    'version': self.version,
+                    'updated_at': datetime.now().isoformat(),
+                    'rules': [rule.to_dict() for rule in self.rules.values()]
+                }
+            
+            # 비동기 저장
+            import asyncio
+            
+            async def save_async():
+                # 기존 규칙 삭제 후 새로 저장 (upsert)
+                await collection.delete_many({})  # 기존 규칙 모두 삭제
+                result = await collection.insert_one(data)
+                return result.inserted_id is not None
+            
+            # 동기 함수에서 비동기 호출
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            success = loop.run_until_complete(save_async())
+            return success
+            
+        except Exception as e:
+            logger.error(f"MongoDB에 규칙 저장 실패: {e}")
+            return False
     
     def add_rule(self, rule: DSLRule) -> bool:
         """규칙 추가"""
