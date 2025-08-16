@@ -167,26 +167,16 @@ function updateBatchStatsUI(stats) {
         progressElement.textContent = `${progress.toFixed(1)}%`;
     }
     
-    // Utils 재확인 및 폴백 설정
-    if (typeof Utils === 'undefined') {
-        window.Utils = UtilsFallback;
-    }
-    
-    // 통계 업데이트
+    // 통계 업데이트 - 직접 UtilsFallback 사용
     updateStatElement('total-processed', stats.total_processed || 0);
-    updateStatElement('success-rate', Utils.formatPercent(stats.success_rate || 0));
+    updateStatElement('success-rate', UtilsFallback.formatPercent(stats.success_rate || 0));
     updateStatElement('current-cycle', stats.current_cycle || 0);
     updateStatElement('estimated-completion', stats.estimated_completion ? 
-        Utils.formatDateTime(stats.estimated_completion) : '-');
+        UtilsFallback.formatDateTime(stats.estimated_completion) : '-');
 }
 
 // 배치 히스토리 UI 업데이트
 function updateBatchHistoryUI(history) {
-    // Utils 재확인 및 폴백 설정
-    if (typeof Utils === 'undefined') {
-        window.Utils = UtilsFallback;
-    }
-    
     const historyBody = document.getElementById('batch-history-body');
     if (!historyBody) return;
     
@@ -208,111 +198,83 @@ function updateBatchHistoryUI(history) {
             <td><span class="badge ${getStatusClass(job.status)}">${getStatusText(job.status)}</span></td>
             <td>${job.total_cases || 0}</td>
             <td>${job.processed_cases || 0}</td>
-            <td>${Utils.formatPercent(job.success_rate || 0)}</td>
-            <td>${Utils.formatDateTime(job.created_at)}</td>
+            <td>${UtilsFallback.formatPercent(job.success_rate || 0)}</td>
+            <td>${UtilsFallback.formatDateTime(job.created_at)}</td>
         </tr>
     `).join('');
 }
 
 // 배치 처리 시작
 async function startBatchProcessing() {
-    // 강제로 Utils 확인 및 폴백 설정
+    // 강제로 Utils를 폴백으로 완전 교체
     console.log('startBatchProcessing: Utils check:', typeof Utils);
-    if (typeof Utils === 'undefined' || !Utils.hideLoading) {
-        console.warn('Utils not found or incomplete in startBatchProcessing, setting fallback');
-        window.Utils = UtilsFallback;
+    console.log('startBatchProcessing: Utils.hideLoading check:', typeof Utils?.hideLoading);
+    
+    // Utils가 없거나 필수 함수가 없으면 완전히 교체
+    if (typeof Utils === 'undefined' || typeof Utils.hideLoading !== 'function') {
+        console.warn('Utils incomplete in startBatchProcessing, completely replacing with fallback');
+        window.Utils = { ...UtilsFallback }; // 완전한 복사본으로 교체
     }
     
     try {
         const settings = getBatchSettings();
         
-        Utils.showLoading('배치 처리를 시작하는 중...');
+        // 직접 UtilsFallback 사용
+        UtilsFallback.showLoading('배치 처리를 시작하는 중...');
         
         const response = await API.post('/batch/start', settings);
         currentBatchJob = response.job_id;
         
-        Utils.hideLoading();
-        Utils.showSuccess('배치 처리가 시작되었습니다.');
+        UtilsFallback.hideLoading();
+        UtilsFallback.showSuccess('배치 처리가 시작되었습니다.');
         
         // UI 상태 업데이트
         updateBatchControlsUI(true);
         
     } catch (error) {
-        // 에러 처리에서도 Utils 재확인
-        if (typeof Utils !== 'undefined' && Utils.hideLoading) {
-            Utils.hideLoading();
-            Utils.showError('배치 처리 시작 실패: ' + error.message);
-        } else {
-            // 폴백 사용
-            console.warn('Utils not available in error handler, using fallback');
-            if (typeof UtilsFallback !== 'undefined') {
-                UtilsFallback.hideLoading();
-                UtilsFallback.showError('배치 처리 시작 실패: ' + error.message);
-            } else {
-                alert('❌ 배치 처리 시작 실패: ' + error.message);
-            }
-        }
+        // 에러 처리에서는 항상 UtilsFallback 직접 사용
+        UtilsFallback.hideLoading();
+        UtilsFallback.showError('배치 처리 시작 실패: ' + error.message);
         console.error('Failed to start batch processing:', error);
     }
 }
 
 // 배치 처리 중지
 async function stopBatchProcessing() {
-    // 강제로 Utils 확인 및 폴백 설정
-    if (typeof Utils === 'undefined' || !Utils.hideLoading) {
-        console.warn('Utils not found or incomplete in stopBatchProcessing, setting fallback');
-        window.Utils = UtilsFallback;
-    }
-    
     if (!currentBatchJob) {
-        Utils.showWarning('실행 중인 배치 작업이 없습니다.');
+        UtilsFallback.showWarning('실행 중인 배치 작업이 없습니다.');
         return;
     }
     
     try {
-        Utils.showLoading('배치 처리를 중지하는 중...');
+        UtilsFallback.showLoading('배치 처리를 중지하는 중...');
         
         await API.post(`/batch/stop/${currentBatchJob}`);
         
-        Utils.hideLoading();
-        Utils.showSuccess('배치 처리가 중지되었습니다.');
+        UtilsFallback.hideLoading();
+        UtilsFallback.showSuccess('배치 처리가 중지되었습니다.');
         
         // UI 상태 업데이트
         updateBatchControlsUI(false);
         currentBatchJob = null;
         
     } catch (error) {
-        if (typeof Utils !== 'undefined' && Utils.hideLoading) {
-            Utils.hideLoading();
-            Utils.showError('배치 처리 중지 실패: ' + error.message);
-        } else {
-            UtilsFallback.hideLoading();
-            UtilsFallback.showError('배치 처리 중지 실패: ' + error.message);
-        }
+        UtilsFallback.hideLoading();
+        UtilsFallback.showError('배치 처리 중지 실패: ' + error.message);
         console.error('Failed to stop batch processing:', error);
     }
 }
 
 // 배치 설정 저장
 async function saveBatchSettings() {
-    // 강제로 Utils 확인 및 폴백 설정
-    if (typeof Utils === 'undefined' || !Utils.showSuccess) {
-        console.warn('Utils not found or incomplete in saveBatchSettings, setting fallback');
-        window.Utils = UtilsFallback;
-    }
-    
     try {
         const settings = getBatchSettings();
         
         await API.post('/batch/settings', settings);
-        Utils.showSuccess('설정이 저장되었습니다.');
+        UtilsFallback.showSuccess('설정이 저장되었습니다.');
         
     } catch (error) {
-        if (typeof Utils !== 'undefined' && Utils.showError) {
-            Utils.showError('설정 저장 실패: ' + error.message);
-        } else {
-            UtilsFallback.showError('설정 저장 실패: ' + error.message);
-        }
+        UtilsFallback.showError('설정 저장 실패: ' + error.message);
         console.error('Failed to save batch settings:', error);
     }
 }
