@@ -117,7 +117,11 @@ async def process_single_case(case_id: str):
             )
         
         # 고급 전처리: 순수 사실만 추출, 법리/판단 내용 제거
-        processed_content = await _extract_factual_content_only(original_content)
+        print("🔍 DEBUG: 고급 사실 추출 시스템 시작...")
+        logger.info("🔍 DEBUG: 고급 사실 추출 시스템 시작...")
+        processed_content = _extract_factual_content_only(original_content)
+        print(f"🔍 DEBUG: 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
+        logger.info(f"🔍 DEBUG: 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
         
         # OpenAI API로 품질 평가 및 개선 제안 생성
         case_metadata = {
@@ -1140,7 +1144,7 @@ async def get_case_diff(case_id: str):
 # 고급 사실 추출 시스템
 # ================================
 
-async def _extract_factual_content_only(content: str) -> str:
+def _extract_factual_content_only(content: str) -> str:
     """
     순수 사실만 추출하고 법리/판단 내용을 제거하는 고급 전처리
     """
