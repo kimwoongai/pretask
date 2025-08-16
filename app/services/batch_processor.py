@@ -132,27 +132,69 @@ class BatchProcessor:
         print(f"📋 DEBUG: 샘플 선정 시작 - 크기: {sample_size}")
         
         try:
-            # MongoDB에서 케이스 조회
+            # MongoDB에서 케이스 조회 (precedents_v2 컬렉션 사용)
             print(f"🔍 DEBUG: MongoDB 컬렉션 가져오기 시도...")
             print(f"🔍 DEBUG: db_manager 객체: {type(db_manager)}")
             print(f"🔍 DEBUG: db_manager 상태: {hasattr(db_manager, 'get_collection')}")
             
-            collection = db_manager.get_collection('cases')
-            print(f"🔍 DEBUG: 컬렉션 객체: {type(collection)}")
-            print(f"🔍 DEBUG: 컬렉션 None 여부: {collection is None}")
+            # precedents_v2 컬렉션 시도
+            collection = db_manager.get_collection('precedents_v2')
+            print(f"🔍 DEBUG: precedents_v2 컬렉션 객체: {type(collection)}")
             
             if collection is None:
-                raise Exception("cases 컬렉션을 찾을 수 없습니다")
+                # cases 컬렉션 폴백
+                print(f"🔍 DEBUG: precedents_v2 없음, cases 컬렉션 시도...")
+                collection = db_manager.get_collection('cases')
+                print(f"🔍 DEBUG: cases 컬렉션 객체: {type(collection)}")
             
-            print(f"✅ DEBUG: cases 컬렉션 연결 성공")
+            if collection is None:
+                raise Exception("precedents_v2 또는 cases 컬렉션을 찾을 수 없습니다")
             
-            # 층화 샘플링 (간단한 버전)
+            print(f"✅ DEBUG: 컬렉션 연결 성공")
+            
+            # 먼저 컬렉션의 문서 수 확인
+            total_count = await collection.count_documents({})
+            print(f"🔍 DEBUG: 컬렉션 총 문서 수: {total_count}")
+            
+            # 샘플 문서 하나 조회해서 필드 구조 확인
+            sample_doc = await collection.find_one({})
+            if sample_doc:
+                print(f"🔍 DEBUG: 샘플 문서 필드: {list(sample_doc.keys())}")
+                
+                # content 필드가 있는지 확인
+                content_field = None
+                if 'content' in sample_doc:
+                    content_field = 'content'
+                elif 'text' in sample_doc:
+                    content_field = 'text'
+                elif 'body' in sample_doc:
+                    content_field = 'body'
+                elif 'document_text' in sample_doc:
+                    content_field = 'document_text'
+                elif 'full_text' in sample_doc:
+                    content_field = 'full_text'
+                else:
+                    # 첫 번째 문자열 필드 찾기
+                    for key, value in sample_doc.items():
+                        if isinstance(value, str) and len(value) > 100:
+                            content_field = key
+                            break
+                
+                print(f"🔍 DEBUG: 사용할 텍스트 필드: {content_field}")
+            else:
+                print(f"❌ DEBUG: 컬렉션에 문서가 없습니다")
+                raise Exception("컬렉션에 문서가 없습니다")
+            
+            if not content_field:
+                raise Exception("텍스트 내용을 담은 필드를 찾을 수 없습니다")
+            
+            # 층화 샘플링 (동적 필드 사용)
             pipeline = [
-                {"$match": {"content": {"$exists": True, "$ne": ""}}},
+                {"$match": {content_field: {"$exists": True, "$ne": "", "$type": "string"}}},
                 {"$sample": {"size": sample_size}}
             ]
             
-            print(f"🔍 DEBUG: 집계 파이프라인 실행 중...")
+            print(f"🔍 DEBUG: 집계 파이프라인 실행 중... (필드: {content_field})")
             cursor = collection.aggregate(pipeline)
             cases = await cursor.to_list(length=sample_size)
             
@@ -161,16 +203,24 @@ class BatchProcessor:
             # 케이스 데이터 변환
             sample_cases = []
             for case in cases:
+                original_content = case.get(content_field, "")
+                
+                if not original_content or len(original_content) < 10:
+                    print(f"⚠️ DEBUG: 케이스 {case.get('_id')} 텍스트가 너무 짧음, 건너뜀")
+                    continue
+                
                 case_data = {
                     "case_id": str(case.get("_id")),
-                    "before_content": case.get("content", ""),
+                    "before_content": original_content,
                     "after_content": "",  # 전처리 후 채워짐
                     "metadata": {
-                        "court_type": case.get("court_type", ""),
-                        "case_type": case.get("case_type", ""),
-                        "year": case.get("year", "")
+                        "court_type": case.get("court_type", case.get("court", "")),
+                        "case_type": case.get("case_type", case.get("type", "")),
+                        "year": case.get("year", case.get("date", "")[:4] if case.get("date") else "")
                     }
                 }
+                
+                print(f"🔍 DEBUG: 케이스 {case_data['case_id']} 전처리 시작 ({len(original_content)}자)")
                 
                 # DSL 규칙 적용하여 전처리
                 processed_content, rule_results = dsl_manager.apply_rules(
@@ -178,6 +228,8 @@ class BatchProcessor:
                     rule_types=None
                 )
                 case_data["after_content"] = processed_content
+                
+                print(f"✅ DEBUG: 케이스 {case_data['case_id']} 전처리 완료 ({len(processed_content)}자)")
                 
                 sample_cases.append(case_data)
             
