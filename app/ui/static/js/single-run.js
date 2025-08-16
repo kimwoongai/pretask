@@ -569,19 +569,25 @@ async function showRuleHistory() {
         
         // Get rule versions
         const data = await API.get('/rules/versions');
+        console.log('Rule history API response:', data);
         
         // Hide loading
         loadingDiv.style.display = 'none';
         
+        // Safe array handling
+        const versions = data.versions || [];
+        const totalVersions = data.total_versions || versions.length;
+        const currentVersion = data.current_version || 'v1.0.2';
+        
         // Display history
         contentDiv.innerHTML = `
             <div class="mb-3">
-                <h6><i class="fas fa-info-circle me-2"></i>총 ${data.total_versions}개 버전</h6>
-                <small class="text-muted">현재 버전: <strong>${data.current_version}</strong></small>
+                <h6><i class="fas fa-info-circle me-2"></i>총 ${totalVersions}개 버전</h6>
+                <small class="text-muted">현재 버전: <strong>${currentVersion}</strong></small>
             </div>
             
             <div class="timeline">
-                ${data.versions.map((version, index) => `
+                ${versions.length > 0 ? versions.map((version, index) => `
                     <div class="timeline-item ${version.is_current ? 'current' : ''}">
                         <div class="timeline-marker ${version.is_current ? 'bg-success' : version.is_stable ? 'bg-primary' : 'bg-secondary'}">
                             ${version.is_current ? '<i class="fas fa-star"></i>' : index + 1}
@@ -608,7 +614,7 @@ async function showRuleHistory() {
                                 </div>
                             </div>
                             
-                            ${version.changes && version.changes.length > 0 ? `
+                            ${version.changes && Array.isArray(version.changes) && version.changes.length > 0 ? `
                                 <div class="mt-2">
                                     <small class="text-muted">변경사항:</small>
                                     <ul class="list-unstyled ms-3 mt-1">
@@ -620,7 +626,15 @@ async function showRuleHistory() {
                             ` : ''}
                         </div>
                     </div>
-                `).join('')}
+                `).join('') : `
+                    <div class="text-center py-4">
+                        <div class="text-muted">
+                            <i class="fas fa-info-circle me-2"></i>
+                            규칙 버전 히스토리가 없습니다.
+                        </div>
+                        <small class="text-muted">현재 기본 규칙 세트를 사용 중입니다.</small>
+                    </div>
+                `}
             </div>
         `;
         
