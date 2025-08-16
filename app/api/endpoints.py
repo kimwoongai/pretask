@@ -5,6 +5,8 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import logging
+import re
+from bs4 import BeautifulSoup
 
 from app.core.config import processing_mode, settings
 from app.services.single_run_processor import SingleRunProcessor
@@ -115,15 +117,8 @@ async def process_single_case(case_id: str):
                 detail=f"OpenAI service initialization failed: {str(openai_error)}"
             )
         
-        # 간단한 전처리 먼저 적용
-        processed_content = original_content
-        # 1. 페이지 번호 제거
-        processed_content = re.sub(r'(?:^|\n)\s*페이지\s*\d+\s*(?:\n|$)', '\n', processed_content)
-        # 2. 구분선 제거  
-        processed_content = re.sub(r'(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)', '\n', processed_content)
-        # 3. 공백 정규화
-        processed_content = re.sub(r'\s{2,}', ' ', processed_content)
-        processed_content = re.sub(r'\n{3,}', '\n\n', processed_content)
+        # 고급 전처리: 순수 사실만 추출, 법리/판단 내용 제거
+        processed_content = await _extract_factual_content_only(original_content)
         
         # OpenAI API로 품질 평가 및 개선 제안 생성
         case_metadata = {
@@ -173,7 +168,18 @@ async def process_single_case(case_id: str):
             "diff_summary": f"Characters: {len(original_content)} → {len(processed_content)} (-{len(original_content) - len(processed_content)})",
             "errors": errors,
             "suggestions": suggestions,
-            "applied_rules": ["page_number_removal", "separator_removal", "whitespace_normalization"],
+            "applied_rules": [
+                "advanced_fact_extraction",
+                "legal_reasoning_removal", 
+                "sentence_factuality_scoring",
+                "section_based_filtering",
+                "precedent_reference_removal",
+                "legal_representative_removal",
+                "date_format_normalization",
+                "case_number_anonymization",
+                "amount_format_standardization",
+                "factual_content_prioritization"
+            ],
             "processing_time_ms": processing_time_ms,
             "token_reduction": metrics.token_reduction,
             "before_content": original_content[:1000] + "..." if len(original_content) > 1000 else original_content,
@@ -207,7 +213,18 @@ async def process_single_case(case_id: str):
                 "nrr": metrics.nrr,
                 "fpr": metrics.fpr,
                 "ss": metrics.ss,
-                "applied_rules": ["page_number_removal", "separator_removal", "whitespace_normalization"],
+                "applied_rules": [
+                "advanced_fact_extraction",
+                "legal_reasoning_removal", 
+                "sentence_factuality_scoring",
+                "section_based_filtering",
+                "precedent_reference_removal",
+                "legal_representative_removal",
+                "date_format_normalization",
+                "case_number_anonymization",
+                "amount_format_standardization",
+                "factual_content_prioritization"
+            ],
                 "errors": errors,
                 "suggestions": suggestions,
                 "status": "completed",
@@ -252,7 +269,18 @@ async def process_single_case(case_id: str):
             "passed": passed,
             "errors": errors,
             "suggestions": suggestions,
-            "applied_rules": ["page_number_removal", "separator_removal", "whitespace_normalization"],
+            "applied_rules": [
+                "advanced_fact_extraction",
+                "legal_reasoning_removal", 
+                "sentence_factuality_scoring",
+                "section_based_filtering",
+                "precedent_reference_removal",
+                "legal_representative_removal",
+                "date_format_normalization",
+                "case_number_anonymization",
+                "amount_format_standardization",
+                "factual_content_prioritization"
+            ],
             "status": "completed"
         }
         
@@ -1107,3 +1135,298 @@ async def get_case_diff(case_id: str):
     except Exception as e:
         logger.error(f"Failed to get case diff: {e}")
         raise HTTPException(status_code=500, detail="Failed to get case diff")
+
+
+# ================================
+# 고급 사실 추출 시스템
+# ================================
+
+async def _extract_factual_content_only(content: str) -> str:
+    """
+    순수 사실만 추출하고 법리/판단 내용을 제거하는 고급 전처리
+    """
+    if not content:
+        return content
+    
+    logger.info("🔍 고급 사실 추출 시작")
+    
+    # 1단계: 기본 텍스트 정리
+    cleaned_text = _clean_text_noise(content)
+    
+    # 2단계: 섹션 구분 및 사실 블록 선별
+    fact_sections = _identify_fact_sections(cleaned_text)
+    
+    # 3단계: 문장 단위 스코어링 및 필터링
+    fact_sentences = _extract_fact_sentences_only(fact_sections)
+    
+    # 4단계: 법리/판단 문장 제거
+    pure_fact_sentences = _remove_legal_reasoning_sentences(fact_sentences)
+    
+    # 5단계: 최종 조립 및 정규화
+    final_content = _assemble_and_normalize_facts(pure_fact_sentences)
+    
+    logger.info(f"✅ 사실 추출 완료: {len(content)}자 → {len(final_content)}자")
+    return final_content
+
+
+def _clean_text_noise(content: str) -> str:
+    """기본 텍스트 노이즈 제거"""
+    # HTML 태그 제거
+    soup = BeautifulSoup(content, 'html.parser')
+    for script in soup(["script", "style"]):
+        script.decompose()
+    text = soup.get_text()
+    
+    # UI/메뉴 제거 패턴들
+    noise_patterns = [
+        r'판례상세\s*저장\s*인쇄\s*보관\s*전자팩스\s*공유\s*화면내\s*검색.*?닫기',
+        r'PDF로\s*보기\s*안내.*?출력을\s*하실\s*수\s*있습니다\.',
+        r'유사문서\s*\d+\s*건.*?태그\s*클라우드.*?닫기',
+        r'상세내용\s*안에\s*있는\s*표나\s*도형.*?원본\s*그대로\s*출력을\s*하실\s*수\s*있습니다\.',
+        r'Tip\d+\..*?닫기',
+        r'유사율\s*\d+%.*?\d+%',
+        r'검색하기\s*통합검색\s*검색하기',
+        r'태그\s*클라우드\s*자세히보기.*?검색하기',
+        r'전자소송기록뷰어상.*?확인하시기\s*바랍니다\.'
+    ]
+    
+    for pattern in noise_patterns:
+        text = re.sub(pattern, '', text, flags=re.DOTALL | re.IGNORECASE)
+    
+    # 줄바꿈·공백 정규화
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\s*[,.]\s*', ', ', text)
+    
+    return text.strip()
+
+
+def _identify_fact_sections(text: str) -> str:
+    """사실 관련 섹션만 식별하여 추출"""
+    # 사실 섹션 시작 패턴
+    fact_start_patterns = [
+        r'사실\s*관계', r'인정\s*사실', r'사실', r'처분의\s*경위', 
+        r'사건', r'재판\s*경과', r'범죄\s*사실'
+    ]
+    
+    # 사실 섹션 종료 패턴 (법리/판단 시작)
+    fact_end_patterns = [
+        r'이유', r'판단', r'관련\s*법리', r'법리', r'주\s*문', 
+        r'주문', r'결론', r'요지', r'참조', r'별지'
+    ]
+    
+    # 사실 구간 찾기
+    start_pos = 0
+    for pattern in fact_start_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            start_pos = match.start()
+            logger.info(f"📍 사실 섹션 시작: {match.group(0)} at {start_pos}")
+            break
+    
+    # 사실 구간 종료점 찾기
+    end_pos = len(text)
+    for pattern in fact_end_patterns:
+        match = re.search(pattern, text[start_pos:], re.IGNORECASE)
+        if match:
+            end_pos = start_pos + match.start()
+            logger.info(f"🛑 사실 섹션 종료: {match.group(0)} at {end_pos}")
+            break
+    
+    fact_section = text[start_pos:end_pos]
+    logger.info(f"📝 사실 섹션 추출: {len(fact_section)}자")
+    
+    return fact_section if len(fact_section) > 100 else text[:len(text)//2]  # 너무 짧으면 앞부분 사용
+
+
+def _extract_fact_sentences_only(text: str) -> List[str]:
+    """사실 문장만 추출 (스코어링 기반)"""
+    # 문장 분할
+    sentences = re.split(r'[.!?]\s+', text)
+    
+    fact_sentences = []
+    for sentence in sentences:
+        if len(sentence.strip()) < 20:
+            continue
+            
+        # 문장 스코어링
+        score = _score_sentence_factuality(sentence)
+        
+        # 점수가 1 이상인 문장만 선택 (사실 문장)
+        if score >= 1:
+            fact_sentences.append(sentence.strip())
+            logger.debug(f"✅ 사실 문장 (점수 {score}): {sentence[:50]}...")
+        else:
+            logger.debug(f"❌ 제외 문장 (점수 {score}): {sentence[:50]}...")
+    
+    logger.info(f"📊 사실 문장 추출: {len(sentences)} → {len(fact_sentences)}개")
+    return fact_sentences
+
+
+def _score_sentence_factuality(sentence: str) -> int:
+    """문장의 사실성 점수 계산"""
+    score = 0
+    
+    # 사실 신호 (+1점씩)
+    fact_signals = {
+        'dates': r'\d{4}[.\-/년]\s*\d{1,2}[.\-/월]\s*\d{1,2}[.\-/일]?',
+        'amounts': r'\d{1,3}(?:,\d{3})*(?:원|만원|억원)',
+        'parties': r'원고|피고|신청인|피신청인|조세심판원|세무서장|주식회사|법인',
+        'actions': r'계약|출원|등록|양도|이전등록|상계|계상|원천징수|부과|통지|제기|기각|작성|제출|매수|매도|분양|송금|지급|납부|신고',
+        'evidence': r'계약서|사업계획서|재무제표|호증|문답서|확인서|증빙|통장|영수증'
+    }
+    
+    for signal_type, pattern in fact_signals.items():
+        if re.search(pattern, sentence):
+            score += 1
+    
+    # 사건 시작 패턴 특별 가산 (+3점)
+    case_start_patterns = [
+        r'^원고는?\s*\d{4}년?.*(?:계약|매수|취득|공사|시공)',
+        r'^피고는?\s*\d{4}년?.*(?:처분|부과|통지)',
+        r'^신청인은?\s*.*(?:신청|제기|요구)',
+        r'^.*?는?\s*\d{4}\.\d{1,2}\.\d{1,2}\.?부터.*?(?:공사|시공|작업|근무|계약)'
+    ]
+    
+    for pattern in case_start_patterns:
+        if re.search(pattern, sentence):
+            score += 3
+            break
+    
+    # 법리/판단 신호 (-3점씩)
+    legal_signals = {
+        'judgments': r'타당하다|정당하다|부당하다|볼\s*수\s*없다|보아야\s*한다|인정된다|판단된다|라\s*할\s*것',
+        'evaluations': r'더\s*높다고\s*보인다|낮다고\s*보인다|단정하기\s*어렵다|추정된다|추론된다|생각된다',
+        'assessments': r'가능성이?\s*있다|있다고\s*할\s*수\s*있다|없다고\s*할\s*수\s*없다|여겨진다|보여진다',
+        'conclusions': r'주\s*문|청구.*(?:기각|인용|각하)',
+        'legal_refs': r'관련\s*법리|법리|대법원.*선고.*판결|판시',
+        'statutes': r'제\d+조(?!.*(처분|통지|계약|양도|이전등록))'
+    }
+    
+    for signal_type, pattern in legal_signals.items():
+        if re.search(pattern, sentence):
+            score -= 3
+    
+    return score
+
+
+def _remove_legal_reasoning_sentences(sentences: List[str]) -> List[str]:
+    """법리/판단 문장 완전 제거"""
+    # 즉시 제거 패턴 (하드 필터)
+    immediate_drop_patterns = [
+        r'^주\s*문', r'^이유', r'^판단', r'^관련\s*법리', r'^법리',
+        r'^요지', r'^상세내용', r'^붙임', r'^PDF로\s*보기',
+        r'청구를\s*(기각|각하|인용)', r'대법원.*선고.*판결.*참조',
+        r'판결\s*선고', r'변론\s*종결.*판결\s*선고',
+        r'^그\s*밖의?\s*여러\s*사정을?\s*살펴보아?도?',
+        r'^이상의?\s*사정을?\s*종합하면?',
+        r'^위와?\s*같은\s*사정을?\s*고려하면?'
+    ]
+    
+    filtered_sentences = []
+    for sentence in sentences:
+        should_drop = False
+        
+        # 즉시 제거 패턴 검사
+        for pattern in immediate_drop_patterns:
+            if re.search(pattern, sentence, re.IGNORECASE):
+                logger.debug(f"🚫 법리 문장 제거: {sentence[:50]}...")
+                should_drop = True
+                break
+        
+        if not should_drop:
+            filtered_sentences.append(sentence)
+    
+    logger.info(f"⚖️ 법리 제거: {len(sentences)} → {len(filtered_sentences)}개 문장")
+    return filtered_sentences
+
+
+def _assemble_and_normalize_facts(sentences: List[str]) -> str:
+    """사실 문장들을 조립하고 정규화"""
+    if not sentences:
+        return ""
+    
+    # 문장 조립
+    text = '. '.join(sentences)
+    
+    # 날짜 정규화 (YYYY.MM.DD 통일)
+    text = re.sub(r'(\d{4}),\s*(\d{1,2}),\s*(\d{1,2})', lambda m: f"{m.group(1)}.{int(m.group(2)):02d}.{int(m.group(3)):02d}", text)
+    text = re.sub(r'(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일', lambda m: f"{m.group(1)}.{int(m.group(2)):02d}.{int(m.group(3)):02d}", text)
+    text = re.sub(r'(\d{4})[/\-]\s*(\d{1,2})[/\-]\s*(\d{1,2})', lambda m: f"{m.group(1)}.{int(m.group(2)):02d}.{int(m.group(3)):02d}", text)
+    
+    # 금액 정규화 (공백 제거)
+    text = re.sub(r'(\d+)\s*,\s*(\d{3})', r'\1,\2', text)
+    text = re.sub(r'(\d+)\s*(원|만원|억원)', r'\1\2', text)
+    
+    # 판례 참조 정보 제거
+    text = re.sub(r'\(대법원 \d{4}\. \d{1,2}\. \d{1,2}\. 선고 \d+[가-힣]+\d+ 판결[^)]*\)', '', text)
+    
+    # 소송대리인 정보 제거
+    text = re.sub(r'\(소송대리인 [^)]+\)', '', text)
+    
+    # 사건번호 익명화
+    text = re.sub(r'\d{4}[가-힣]+\d+', '○○○○○○○○', text)
+    
+    # 공백 정규화
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\.\s*\.', '.', text)
+    
+    # 길이 조정 (1000-1600자 목표)
+    if len(text) > 1600:
+        # 너무 길면 중요한 문장들만 선별
+        important_sentences = _select_most_important_sentences(sentences, 1400)
+        text = '. '.join(important_sentences)
+    elif len(text) < 800:
+        logger.warning(f"⚠️ 사실 추출 결과가 짧습니다: {len(text)}자")
+    
+    return text.strip()
+
+
+def _select_most_important_sentences(sentences: List[str], target_length: int) -> List[str]:
+    """가장 중요한 문장들 선별"""
+    # 문장별 중요도 점수 계산
+    scored_sentences = []
+    for sentence in sentences:
+        importance = 0
+        
+        # 날짜 포함: +3점
+        if re.search(r'\d{4}\.\d{2}\.\d{2}', sentence):
+            importance += 3
+        
+        # 금액 포함: +3점
+        if re.search(r'[0-9,]+원', sentence):
+            importance += 3
+        
+        # 당사자 포함: +2점
+        if re.search(r'원고|피고|대표이사|세무서장', sentence):
+            importance += 2
+        
+        # 핵심 행위 포함: +2점
+        if re.search(r'출원|등록|양도|이전등록|상계|계상|원천징수|부과|통지|제기|작성|제출', sentence):
+            importance += 2
+        
+        # 사건번호 포함: +1점
+        if re.search(r'\d{4}[가나다라마바사아자차카타파하][가-힣]+\d+', sentence):
+            importance += 1
+        
+        scored_sentences.append((sentence, importance))
+    
+    # 중요도 순으로 정렬
+    scored_sentences.sort(key=lambda x: x[1], reverse=True)
+    
+    # 목표 길이까지 문장 선택
+    selected = []
+    current_length = 0
+    
+    for sentence, score in scored_sentences:
+        if current_length + len(sentence) <= target_length:
+            selected.append(sentence)
+            current_length += len(sentence)
+        elif current_length < target_length * 0.8:  # 80% 미만이면 강제 추가
+            # 문장을 잘라서라도 추가
+            remaining = target_length - current_length
+            if remaining > 100:
+                truncated = sentence[:remaining-3] + "..."
+                selected.append(truncated)
+            break
+    
+    return selected
