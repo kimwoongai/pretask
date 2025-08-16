@@ -119,13 +119,23 @@ async def process_single_case(case_id: str):
                 detail=f"OpenAI service initialization failed: {str(openai_error)}"
             )
         
-        # 고급 전처리: 순수 사실만 추출, 법리/판단 내용 제거
-        print("🔍 DEBUG: 고급 사실 추출 시스템 시작...")
-        logger.info("🔍 DEBUG: 고급 사실 추출 시스템 시작...")
-        processed_content = _extract_factual_content_only(original_content)
-        print(f"🔍 DEBUG: 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
+        # DSL 규칙 기반 전처리 시스템
+        print("🔍 DEBUG: DSL 규칙 기반 전처리 시작...")
+        logger.info("🔍 DEBUG: DSL 규칙 기반 전처리 시작...")
+        
+        from app.services.dsl_rules import dsl_manager
+        from app.services.auto_patch_engine import auto_patch_engine
+        
+        # DSL 규칙 적용
+        processed_content, rule_results = dsl_manager.apply_rules(
+            original_content, 
+            rule_types=['noise_removal', 'legal_filtering']
+        )
+        
+        print(f"🔍 DEBUG: DSL 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
+        print(f"🔍 DEBUG: 적용된 규칙: {rule_results['stats']['applied_rule_count']}개")
         print(f"🔍 DEBUG: 전처리 결과 시작 부분: {processed_content[:200]}...")
-        logger.info(f"🔍 DEBUG: 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
+        logger.info(f"🔍 DEBUG: DSL 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
         
         # OpenAI API로 품질 평가 및 개선 제안 생성
         case_metadata = {
@@ -145,6 +155,39 @@ async def process_single_case(case_id: str):
             )
             print(f"🔍 DEBUG: OpenAI evaluation completed - metrics: nrr={metrics.nrr}, fpr={metrics.fpr}, ss={metrics.ss}")
             logger.info("OpenAI evaluation completed successfully")
+            
+            # 자동 패치 엔진 적용 (AI 제안 → 규칙 개선)
+            if suggestions and len(suggestions) > 0:
+                print("🔧 DEBUG: 자동 패치 엔진 시작...")
+                logger.info("자동 패치 엔진 시작...")
+                
+                # AI 제안을 패치로 변환
+                patch_suggestions = auto_patch_engine.analyze_suggestions(
+                    suggestions, 
+                    {
+                        'nrr': metrics.nrr,
+                        'icr': metrics.fpr,
+                        'ss': metrics.ss,
+                        'token_reduction': metrics.token_reduction
+                    },
+                    original_content
+                )
+                
+                # 자동 패치 적용 (신뢰도 0.8 이상)
+                if patch_suggestions:
+                    patch_results = auto_patch_engine.auto_apply_patches(
+                        patch_suggestions, 
+                        auto_apply_threshold=0.8
+                    )
+                    print(f"🔧 DEBUG: 패치 적용 결과 - 자동 적용: {patch_results['auto_applied']}개, "
+                          f"검토 필요: {patch_results['manual_review']}개")
+                    logger.info(f"패치 적용 완료: {patch_results}")
+                else:
+                    print("🔧 DEBUG: 적용 가능한 패치 없음")
+                    logger.info("적용 가능한 패치 없음")
+            else:
+                print("🔧 DEBUG: AI 제안 없음 - 패치 엔진 스킵")
+                logger.info("AI 제안 없음 - 패치 엔진 스킵")
         except Exception as eval_error:
             print(f"🔍 DEBUG: OpenAI evaluation failed: {eval_error}")
             logger.error(f"OpenAI evaluation failed: {eval_error}")
@@ -175,18 +218,7 @@ async def process_single_case(case_id: str):
             "diff_summary": f"Characters: {len(original_content)} → {len(processed_content)} (-{len(original_content) - len(processed_content)})",
             "errors": errors,
             "suggestions": suggestions,
-            "applied_rules": [
-                "advanced_fact_extraction",
-                "legal_reasoning_removal", 
-                "sentence_factuality_scoring",
-                "section_based_filtering",
-                "precedent_reference_removal",
-                "legal_representative_removal",
-                "date_format_normalization",
-                "case_number_anonymization",
-                "amount_format_standardization",
-                "factual_content_prioritization"
-            ],
+            "applied_rules": [rule['rule_id'] for rule in rule_results['applied_rules']],
             "processing_time_ms": processing_time_ms,
             "token_reduction": metrics.token_reduction,
             "before_content": original_content[:1000] + "..." if len(original_content) > 1000 else original_content,
@@ -220,18 +252,7 @@ async def process_single_case(case_id: str):
                 "nrr": metrics.nrr,
                 "fpr": metrics.fpr,
                 "ss": metrics.ss,
-                "applied_rules": [
-                "advanced_fact_extraction",
-                "legal_reasoning_removal", 
-                "sentence_factuality_scoring",
-                "section_based_filtering",
-                "precedent_reference_removal",
-                "legal_representative_removal",
-                "date_format_normalization",
-                "case_number_anonymization",
-                "amount_format_standardization",
-                "factual_content_prioritization"
-            ],
+                "applied_rules": [rule['rule_id'] for rule in rule_results['applied_rules']],
                 "errors": errors,
                 "suggestions": suggestions,
                 "status": "completed",
@@ -276,18 +297,7 @@ async def process_single_case(case_id: str):
             "passed": passed,
             "errors": errors,
             "suggestions": suggestions,
-            "applied_rules": [
-                "advanced_fact_extraction",
-                "legal_reasoning_removal", 
-                "sentence_factuality_scoring",
-                "section_based_filtering",
-                "precedent_reference_removal",
-                "legal_representative_removal",
-                "date_format_normalization",
-                "case_number_anonymization",
-                "amount_format_standardization",
-                "factual_content_prioritization"
-            ],
+            "applied_rules": [rule['rule_id'] for rule in rule_results['applied_rules']],
             "status": "completed"
         }
         
