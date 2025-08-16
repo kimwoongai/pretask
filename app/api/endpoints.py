@@ -472,9 +472,14 @@ async def get_cases(
         # MongoDB Atlas의 precedents_v2 컬렉션에서 조회
         collection = db_manager.get_collection("precedents_v2")
         
+        logger.info(f"Cases API - MongoDB collection status: {collection is not None}")
+        
         if collection is None:
+            logger.warning("MongoDB collection is None - falling back to demo data")
             # MongoDB 연결이 없는 경우 데모 데이터
             return await get_demo_cases(limit, offset)
+        
+        logger.info("Successfully got MongoDB collection for cases list")
         
         # 필터 조건 구성
         filter_query = {}
@@ -482,15 +487,20 @@ async def get_cases(
             filter_query["court_type"] = {"$regex": court_type, "$options": "i"}
         if case_type:
             filter_query["case_name"] = {"$regex": case_type, "$options": "i"}
-        if status:
-            filter_query["status"] = status
+        # status 필터는 실제 데이터에 없으므로 제거
+        # if status:
+        #     filter_query["status"] = status
+        
+        logger.info(f"Filter query: {filter_query}")
         
         # 총 개수 조회
         total_count = await collection.count_documents(filter_query)
+        logger.info(f"Total documents matching filter: {total_count}")
         
         # 케이스 목록 조회
         cursor = collection.find(filter_query).skip(offset).limit(limit)
         documents = await cursor.to_list(length=limit)
+        logger.info(f"Retrieved {len(documents)} documents")
         
         cases = []
         for doc in documents:
