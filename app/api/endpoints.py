@@ -153,13 +153,19 @@ async def process_single_case(case_id: str):
                     "description": "페이지 번호 제거 규칙 개선",
                     "confidence_score": 0.85,
                     "rule_type": "regex_improvement",
-                    "estimated_improvement": "5-8% 토큰 절감"
+                    "estimated_improvement": "5-8% 토큰 절감",
+                    "applicable_cases": ["민사", "형사"],
+                    "pattern_before": r"페이지\s*\d+",
+                    "pattern_after": r"(?:^|\n)\s*페이지\s*\d+\s*(?:\n|$)"
                 },
                 {
                     "description": "구분선 패턴 최적화",
                     "confidence_score": 0.72,
                     "rule_type": "pattern_optimization", 
-                    "estimated_improvement": "3-5% 토큰 절감"
+                    "estimated_improvement": "3-5% 토큰 절감",
+                    "applicable_cases": ["행정", "민사"],
+                    "pattern_before": r"[-=]{3,}",
+                    "pattern_after": r"(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)"
                 }
             ] if not passed else [],
             "applied_rules": applied_rules,
@@ -209,13 +215,19 @@ async def process_demo_case(case_id: str):
                 "description": "데모: 페이지 번호 제거 규칙 개선",
                 "confidence_score": 0.90,
                 "rule_type": "regex_improvement",
-                "estimated_improvement": "6-10% 토큰 절감"
+                "estimated_improvement": "6-10% 토큰 절감",
+                "applicable_cases": ["데모", "테스트"],
+                "pattern_before": r"페이지\s*\d+",
+                "pattern_after": r"(?:^|\n)\s*페이지\s*\d+\s*(?:\n|$)"
             },
             {
                 "description": "데모: 구분선 패턴 최적화",
                 "confidence_score": 0.78,
                 "rule_type": "pattern_optimization", 
-                "estimated_improvement": "4-6% 토큰 절감"
+                "estimated_improvement": "4-6% 토큰 절감",
+                "applicable_cases": ["데모", "테스트"],
+                "pattern_before": r"[-=]{3,}",
+                "pattern_after": r"(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)"
             }
         ] if not passed else [],
         "applied_rules": ["page_number_001", "separator_001", "whitespace_001"],

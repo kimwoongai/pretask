@@ -67,17 +67,27 @@ function setupEventListeners() {
 // Load case list
 async function loadCaseList() {
     try {
-        const response = await API.get('/cases?limit=50&status=pending');
+        const response = await API.get('/cases?limit=50');
+        console.log('Cases API response:', response);
+        
         const caseSelect = document.getElementById('case-select');
         
         caseSelect.innerHTML = '<option value="">케이스를 선택하세요</option>';
         
-        response.cases.forEach(case_ => {
-            const option = document.createElement('option');
-            option.value = case_.case_id;
-            option.textContent = `${case_.case_id} (${case_.court_type} - ${case_.case_type})`;
-            caseSelect.appendChild(option);
-        });
+        if (response.cases && response.cases.length > 0) {
+            console.log(`Loading ${response.cases.length} cases`);
+            response.cases.forEach(case_ => {
+                const option = document.createElement('option');
+                option.value = case_.case_id;
+                // 실제 데이터 구조에 맞게 표시 형식 수정
+                const displayText = `${case_.precedent_id || case_.case_id} - ${case_.case_name || '사건명 없음'} (${case_.court_name || case_.court_type || '법원 정보 없음'})`;
+                option.textContent = displayText;
+                caseSelect.appendChild(option);
+            });
+        } else {
+            console.warn('No cases found in response');
+            caseSelect.innerHTML += '<option disabled>판례를 찾을 수 없습니다</option>';
+        }
         
     } catch (error) {
         console.error('Failed to load case list:', error);
