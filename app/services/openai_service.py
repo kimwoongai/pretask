@@ -280,7 +280,31 @@ class OpenAIService:
                 json_text = result_text[start:end].strip()
                 print(f"🔍 DEBUG: Extracted JSON (fallback): {json_text}")
             
-            result_data = json.loads(json_text)
+            # 정규식 패턴의 이스케이프 문자 처리
+            try:
+                result_data = json.loads(json_text)
+            except json.JSONDecodeError as json_error:
+                print(f"🔍 DEBUG: JSON 파싱 오류, 이스케이프 문자 처리 시도: {json_error}")
+                # 정규식 패턴에서 백슬래시를 이중 백슬래시로 변환
+                fixed_json_text = json_text
+                # pattern_before와 pattern_after 필드에서 이스케이프 문자 수정
+                import re as regex_module
+                pattern_fields = regex_module.findall(r'"pattern_before":\s*"([^"]*)"', fixed_json_text)
+                for pattern in pattern_fields:
+                    if '\\' in pattern and not '\\\\' in pattern:
+                        # 단일 백슬래시를 이중 백슬래시로 변경
+                        fixed_pattern = pattern.replace('\\', '\\\\')
+                        fixed_json_text = fixed_json_text.replace(f'"pattern_before": "{pattern}"', f'"pattern_before": "{fixed_pattern}"')
+                
+                pattern_after_fields = regex_module.findall(r'"pattern_after":\s*"([^"]*)"', fixed_json_text)
+                for pattern in pattern_after_fields:
+                    if '\\' in pattern and not '\\\\' in pattern:
+                        # 단일 백슬래시를 이중 백슬래시로 변경
+                        fixed_pattern = pattern.replace('\\', '\\\\')
+                        fixed_json_text = fixed_json_text.replace(f'"pattern_after": "{pattern}"', f'"pattern_after": "{fixed_pattern}"')
+                
+                print(f"🔍 DEBUG: 수정된 JSON: {fixed_json_text[:500]}...")
+                result_data = json.loads(fixed_json_text)
             
             metrics = QualityMetrics(
                 nrr=result_data["metrics"]["nrr"],
