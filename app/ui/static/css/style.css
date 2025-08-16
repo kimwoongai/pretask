@@ -372,3 +372,56 @@ body {
 .custom-scroll::-webkit-scrollbar-thumb:hover {
     background-color: #495057;
 }
+
+/* 타임라인 스타일 */
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -22px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    border: 3px solid white;
+    box-shadow: 0 0 0 2px #dee2e6;
+}
+
+.timeline-item.current .timeline-marker {
+    box-shadow: 0 0 0 2px #28a745;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #dee2e6;
+}
+
+.timeline-item.current .timeline-content {
+    border-left-color: #28a745;
+    background: #f8fff9;
+}

@@ -148,7 +148,20 @@ async def process_single_case(case_id: str):
             },
             "diff_summary": diff_summary,
             "errors": [] if passed else ["품질 게이트 미달성"],
-            "suggestions": "규칙 최적화 제안" if not passed else "",
+            "suggestions": [
+                {
+                    "description": "페이지 번호 제거 규칙 개선",
+                    "confidence_score": 0.85,
+                    "rule_type": "regex_improvement",
+                    "estimated_improvement": "5-8% 토큰 절감"
+                },
+                {
+                    "description": "구분선 패턴 최적화",
+                    "confidence_score": 0.72,
+                    "rule_type": "pattern_optimization", 
+                    "estimated_improvement": "3-5% 토큰 절감"
+                }
+            ] if not passed else [],
             "applied_rules": applied_rules,
             "processing_time_ms": random.randint(800, 2000),
             "token_reduction": round(token_reduction, 1),
@@ -191,7 +204,20 @@ async def process_demo_case(case_id: str):
         },
         "diff_summary": f"Lines: 150 → 120 (-30), Characters: 5000 → 3800 (-1200)",
         "errors": [] if passed else ["품질 게이트 미달성"],
-        "suggestions": "규칙 최적화 제안" if not passed else "",
+        "suggestions": [
+            {
+                "description": "데모: 페이지 번호 제거 규칙 개선",
+                "confidence_score": 0.90,
+                "rule_type": "regex_improvement",
+                "estimated_improvement": "6-10% 토큰 절감"
+            },
+            {
+                "description": "데모: 구분선 패턴 최적화",
+                "confidence_score": 0.78,
+                "rule_type": "pattern_optimization", 
+                "estimated_improvement": "4-6% 토큰 절감"
+            }
+        ] if not passed else [],
         "applied_rules": ["page_number_001", "separator_001", "whitespace_001"],
         "processing_time_ms": random.randint(800, 2000),
         "token_reduction": round(token_reduction, 1),
@@ -776,6 +802,190 @@ async def get_processed_case_detail(processed_id: str):
     except Exception as e:
         logger.error(f"Failed to fetch processed case detail: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch processed case detail")
+
+
+# 규칙 파일 관리 엔드포인트
+@router.get("/rules/versions")
+async def get_rule_versions():
+    """규칙 파일 버전 목록 조회"""
+    try:
+        from app.core.database import db_manager
+        
+        collection = db_manager.get_collection("rules_versions")
+        
+        if collection is None:
+            # 데모 데이터
+            return {
+                "versions": [
+                    {
+                        "version": "v1.0.0",
+                        "description": "초기 규칙 세트",
+                        "created_at": "2024-01-10T10:00:00",
+                        "is_stable": True,
+                        "performance": {
+                            "avg_token_reduction": 22.5,
+                            "avg_nrr": 0.943,
+                            "avg_fpr": 0.989,
+                            "avg_ss": 0.912
+                        },
+                        "rules_count": 15
+                    },
+                    {
+                        "version": "v1.0.1", 
+                        "description": "페이지 번호 제거 규칙 개선",
+                        "created_at": "2024-01-15T12:30:00",
+                        "is_stable": False,
+                        "performance": {
+                            "avg_token_reduction": 24.8,
+                            "avg_nrr": 0.951,
+                            "avg_fpr": 0.992,
+                            "avg_ss": 0.925
+                        },
+                        "rules_count": 16,
+                        "changes": [
+                            "페이지 번호 정규식 패턴 개선",
+                            "구분선 제거 규칙 최적화"
+                        ]
+                    },
+                    {
+                        "version": "v1.0.2",
+                        "description": "자동 패치: 공백 정규화 개선", 
+                        "created_at": "2024-01-20T15:45:00",
+                        "is_stable": False,
+                        "performance": {
+                            "avg_token_reduction": 26.2,
+                            "avg_nrr": 0.958,
+                            "avg_fpr": 0.994,
+                            "avg_ss": 0.931
+                        },
+                        "rules_count": 17,
+                        "changes": [
+                            "다중 공백 처리 규칙 개선",
+                            "줄바꿈 정규화 최적화"
+                        ]
+                    }
+                ],
+                "current_version": "v1.0.2",
+                "total_versions": 3
+            }
+        
+        # 실제 MongoDB에서 조회
+        cursor = collection.find().sort("created_at", -1).limit(20)
+        documents = await cursor.to_list(length=20)
+        
+        versions = []
+        current_version = None
+        
+        for doc in documents:
+            version_data = {
+                "version": doc.get("version", ""),
+                "description": doc.get("description", ""),
+                "created_at": doc.get("created_at", "").isoformat() if doc.get("created_at") else "",
+                "is_stable": doc.get("is_stable", False),
+                "performance": doc.get("performance", {}),
+                "rules_count": doc.get("rules_count", 0),
+                "changes": doc.get("changes", [])
+            }
+            versions.append(version_data)
+            
+            if doc.get("is_current", False):
+                current_version = doc.get("version")
+        
+        return {
+            "versions": versions,
+            "current_version": current_version or (versions[0]["version"] if versions else None),
+            "total_versions": len(versions)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to fetch rule versions: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch rule versions")
+
+
+@router.get("/rules/versions/{version}")
+async def get_rule_version_detail(version: str):
+    """특정 규칙 파일 버전의 상세 정보"""
+    try:
+        from app.core.database import db_manager
+        
+        collection = db_manager.get_collection("rules_versions")
+        
+        if collection is None:
+            # 데모 데이터
+            return {
+                "version": version,
+                "description": f"규칙 세트 {version}",
+                "created_at": "2024-01-15T12:30:00",
+                "is_stable": version == "v1.0.0",
+                "is_current": version == "v1.0.2",
+                "performance": {
+                    "avg_token_reduction": 24.8,
+                    "avg_nrr": 0.951,
+                    "avg_fpr": 0.992,
+                    "avg_ss": 0.925,
+                    "test_cases_passed": 1847,
+                    "test_cases_total": 2000
+                },
+                "rules": [
+                    {
+                        "name": "page_number_removal",
+                        "description": "페이지 번호 제거",
+                        "pattern": r"(?:^|\n)\s*페이지\s*\d+\s*(?:\n|$)",
+                        "replacement": "\n",
+                        "enabled": True,
+                        "priority": 1
+                    },
+                    {
+                        "name": "separator_removal", 
+                        "description": "구분선 제거",
+                        "pattern": r"(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)",
+                        "replacement": "\n",
+                        "enabled": True,
+                        "priority": 2
+                    },
+                    {
+                        "name": "whitespace_normalization",
+                        "description": "공백 정규화",
+                        "pattern": r"\s{2,}",
+                        "replacement": " ",
+                        "enabled": True,
+                        "priority": 3
+                    }
+                ],
+                "changes": [
+                    "페이지 번호 정규식 패턴 개선",
+                    "구분선 제거 규칙 최적화"
+                ],
+                "test_results": {
+                    "regression_tests": "통과 (0 실패)",
+                    "unit_tests": "통과 (15/15)",
+                    "holdout_validation": "통과 (NRR: 0.951)"
+                }
+            }
+        
+        # 실제 MongoDB에서 조회
+        document = await collection.find_one({"version": version})
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Rule version not found")
+        
+        return {
+            "version": document.get("version", ""),
+            "description": document.get("description", ""),
+            "created_at": document.get("created_at", "").isoformat() if document.get("created_at") else "",
+            "is_stable": document.get("is_stable", False),
+            "is_current": document.get("is_current", False),
+            "performance": document.get("performance", {}),
+            "rules": document.get("rules", []),
+            "changes": document.get("changes", []),
+            "test_results": document.get("test_results", {})
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch rule version detail: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch rule version detail")
 
 
 @router.get("/cases/{case_id}/diff")

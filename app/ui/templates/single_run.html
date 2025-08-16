@@ -89,6 +89,31 @@
                 <small class="text-muted">20건 연속 통과까지</small>
             </div>
         </div>
+        
+        <!-- 규칙 파일 관리 -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-cogs me-2"></i>
+                    규칙 파일 관리
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" id="view-rules-btn">
+                        <i class="fas fa-eye me-1"></i>
+                        현재 규칙 파일 보기
+                    </button>
+                    <button class="btn btn-outline-info" id="rule-history-btn">
+                        <i class="fas fa-history me-1"></i>
+                        규칙 버전 히스토리
+                    </button>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">현재 버전: <span id="current-rule-version">v1.0.2</span></small>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- 처리 결과 -->
@@ -230,6 +255,60 @@
                     <i class="fas fa-check me-1"></i>
                     규칙 적용
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 규칙 파일 보기 모달 -->
+<div class="modal fade" id="rulesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cogs me-2"></i>
+                    규칙 파일 보기
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="rules-loading" class="text-center py-3" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">로딩 중...</span>
+                    </div>
+                    <div class="mt-2">규칙 파일을 불러오는 중...</div>
+                </div>
+                <div id="rules-content"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 규칙 버전 히스토리 모달 -->
+<div class="modal fade" id="ruleHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-history me-2"></i>
+                    규칙 버전 히스토리
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="history-loading" class="text-center py-3" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">로딩 중...</span>
+                    </div>
+                    <div class="mt-2">히스토리를 불러오는 중...</div>
+                </div>
+                <div id="history-content"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
             </div>
         </div>
     </div>

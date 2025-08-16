@@ -52,6 +52,16 @@ function setupEventListeners() {
     document.getElementById('apply-rule-btn').addEventListener('click', async function() {
         await applySelectedRule();
     });
+    
+    // View rules button
+    document.getElementById('view-rules-btn').addEventListener('click', async function() {
+        await showCurrentRules();
+    });
+    
+    // Rule history button
+    document.getElementById('rule-history-btn').addEventListener('click', async function() {
+        await showRuleHistory();
+    });
 }
 
 // Load case list
@@ -353,6 +363,225 @@ function showDiffView() {
     document.getElementById('diff-summary').textContent = result.diff_summary || '';
     
     modal.show();
+}
+
+// Show current rules
+async function showCurrentRules() {
+    try {
+        const modal = new bootstrap.Modal(document.getElementById('rulesModal'));
+        const loadingDiv = document.getElementById('rules-loading');
+        const contentDiv = document.getElementById('rules-content');
+        
+        // Show loading
+        loadingDiv.style.display = 'block';
+        contentDiv.innerHTML = '';
+        modal.show();
+        
+        // Get current version first
+        const versions = await API.get('/rules/versions');
+        const currentVersion = versions.current_version;
+        
+        // Get rule details
+        const ruleData = await API.get(`/rules/versions/${currentVersion}`);
+        
+        // Hide loading
+        loadingDiv.style.display = 'none';
+        
+        // Update current version display
+        document.getElementById('current-rule-version').textContent = currentVersion;
+        
+        // Display rules
+        contentDiv.innerHTML = `
+            <div class="mb-3">
+                <h6><i class="fas fa-tag me-2"></i>버전: ${ruleData.version}</h6>
+                <p class="text-muted">${ruleData.description}</p>
+                <small class="text-muted">생성일: ${Utils.formatDateTime(ruleData.created_at)}</small>
+                ${ruleData.is_current ? '<span class="badge bg-success ms-2">현재 버전</span>' : ''}
+                ${ruleData.is_stable ? '<span class="badge bg-primary ms-2">안정 버전</span>' : ''}
+            </div>
+            
+            <div class="mb-3">
+                <h6><i class="fas fa-chart-line me-2"></i>성능 지표</h6>
+                <div class="row">
+                    <div class="col-3">
+                        <div class="text-center">
+                            <div class="h5 text-success">${Utils.formatNumber(ruleData.performance.avg_nrr, 3)}</div>
+                            <small>NRR</small>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="text-center">
+                            <div class="h5 text-info">${Utils.formatNumber(ruleData.performance.avg_fpr, 3)}</div>
+                            <small>FPR</small>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="text-center">
+                            <div class="h5 text-warning">${Utils.formatNumber(ruleData.performance.avg_ss, 3)}</div>
+                            <small>SS</small>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="text-center">
+                            <div class="h5 text-primary">${Utils.formatPercent(ruleData.performance.avg_token_reduction)}</div>
+                            <small>토큰 절감</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <h6><i class="fas fa-list me-2"></i>적용 규칙 (${ruleData.rules.length}개)</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>우선순위</th>
+                                <th>이름</th>
+                                <th>설명</th>
+                                <th>패턴</th>
+                                <th>상태</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${ruleData.rules.map(rule => `
+                                <tr>
+                                    <td>${rule.priority}</td>
+                                    <td><code>${rule.name}</code></td>
+                                    <td>${rule.description}</td>
+                                    <td><small><code>${rule.pattern}</code></small></td>
+                                    <td>
+                                        ${rule.enabled ? 
+                                            '<span class="badge bg-success">활성</span>' : 
+                                            '<span class="badge bg-secondary">비활성</span>'
+                                        }
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            ${ruleData.changes && ruleData.changes.length > 0 ? `
+                <div class="mb-3">
+                    <h6><i class="fas fa-edit me-2"></i>변경 사항</h6>
+                    <ul class="list-unstyled">
+                        ${ruleData.changes.map(change => `
+                            <li><i class="fas fa-chevron-right me-2 text-muted"></i>${change}</li>
+                        `).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+            
+            <div class="mb-3">
+                <h6><i class="fas fa-check-circle me-2"></i>테스트 결과</h6>
+                <div class="row">
+                    <div class="col-4">
+                        <small class="text-muted">회귀 테스트</small><br>
+                        <span class="text-success">${ruleData.test_results.regression_tests || '통과'}</span>
+                    </div>
+                    <div class="col-4">
+                        <small class="text-muted">단위 테스트</small><br>
+                        <span class="text-success">${ruleData.test_results.unit_tests || '통과'}</span>
+                    </div>
+                    <div class="col-4">
+                        <small class="text-muted">홀드아웃 검증</small><br>
+                        <span class="text-success">${ruleData.test_results.holdout_validation || '통과'}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Failed to load rules:', error);
+        document.getElementById('rules-content').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                규칙 파일을 불러오는 중 오류가 발생했습니다.
+            </div>
+        `;
+    }
+}
+
+// Show rule history
+async function showRuleHistory() {
+    try {
+        const modal = new bootstrap.Modal(document.getElementById('ruleHistoryModal'));
+        const loadingDiv = document.getElementById('history-loading');
+        const contentDiv = document.getElementById('history-content');
+        
+        // Show loading
+        loadingDiv.style.display = 'block';
+        contentDiv.innerHTML = '';
+        modal.show();
+        
+        // Get rule versions
+        const data = await API.get('/rules/versions');
+        
+        // Hide loading
+        loadingDiv.style.display = 'none';
+        
+        // Display history
+        contentDiv.innerHTML = `
+            <div class="mb-3">
+                <h6><i class="fas fa-info-circle me-2"></i>총 ${data.total_versions}개 버전</h6>
+                <small class="text-muted">현재 버전: <strong>${data.current_version}</strong></small>
+            </div>
+            
+            <div class="timeline">
+                ${data.versions.map((version, index) => `
+                    <div class="timeline-item ${version.is_current ? 'current' : ''}">
+                        <div class="timeline-marker ${version.is_current ? 'bg-success' : version.is_stable ? 'bg-primary' : 'bg-secondary'}">
+                            ${version.is_current ? '<i class="fas fa-star"></i>' : index + 1}
+                        </div>
+                        <div class="timeline-content">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">
+                                        ${version.version}
+                                        ${version.is_current ? '<span class="badge bg-success ms-2">현재</span>' : ''}
+                                        ${version.is_stable ? '<span class="badge bg-primary ms-2">안정</span>' : ''}
+                                    </h6>
+                                    <p class="mb-1">${version.description}</p>
+                                    <small class="text-muted">
+                                        ${Utils.formatDateTime(version.created_at)} • 
+                                        규칙 ${version.rules_count}개
+                                    </small>
+                                </div>
+                                <div class="text-end">
+                                    <div class="small">
+                                        <div>토큰: ${Utils.formatPercent(version.performance.avg_token_reduction)}</div>
+                                        <div>NRR: ${Utils.formatNumber(version.performance.avg_nrr, 3)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            ${version.changes && version.changes.length > 0 ? `
+                                <div class="mt-2">
+                                    <small class="text-muted">변경사항:</small>
+                                    <ul class="list-unstyled ms-3 mt-1">
+                                        ${version.changes.map(change => `
+                                            <li class="small"><i class="fas fa-chevron-right me-1 text-muted"></i>${change}</li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Failed to load rule history:', error);
+        document.getElementById('history-content').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                규칙 히스토리를 불러오는 중 오류가 발생했습니다.
+            </div>
+        `;
+    }
 }
 
 // Cleanup on page unload
