@@ -91,6 +91,9 @@ async def process_single_case(case_id: str):
             raise HTTPException(status_code=404, detail="Case not found")
         
         original_content = document.get("content", "")
+        print(f"🔍 DEBUG: 원본 문서 길이: {len(original_content)}자")
+        print(f"🔍 DEBUG: 원본 문서 시작 부분: {original_content[:200]}...")
+        logger.info(f"🔍 DEBUG: 원본 문서 길이: {len(original_content)}자")
         
         # OpenAI API 키 확인
         if not settings.openai_api_key:
@@ -121,6 +124,7 @@ async def process_single_case(case_id: str):
         logger.info("🔍 DEBUG: 고급 사실 추출 시스템 시작...")
         processed_content = _extract_factual_content_only(original_content)
         print(f"🔍 DEBUG: 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
+        print(f"🔍 DEBUG: 전처리 결과 시작 부분: {processed_content[:200]}...")
         logger.info(f"🔍 DEBUG: 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
         
         # OpenAI API로 품질 평가 및 개선 제안 생성
