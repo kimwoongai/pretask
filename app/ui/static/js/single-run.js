@@ -427,7 +427,10 @@ async function showCurrentRules() {
         
         // Get current version first
         const versions = await API.get('/rules/versions');
-        const currentVersion = versions.current_version;
+        console.log('Rules versions response:', versions);
+        
+        const currentVersion = versions.current_version || versions.versions?.[0]?.version || 'v1.0.2';
+        console.log('Using current version:', currentVersion);
         
         // Get rule details
         const ruleData = await API.get(`/rules/versions/${currentVersion}`);
