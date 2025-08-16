@@ -198,6 +198,10 @@ class AutoPatchEngine:
     def apply_patch(self, patch: PatchSuggestion) -> Tuple[bool, str]:
         """패치를 DSL 규칙으로 적용"""
         try:
+            print(f"🔧 DEBUG: 패치 적용 시도 - ID: {patch.suggestion_id}, Type: {patch.rule_type}")
+            print(f"🔧 DEBUG: Pattern Before: {patch.pattern_before}")
+            print(f"🔧 DEBUG: Pattern After: {patch.pattern_after}")
+            
             # 패치 타입에 따른 규칙 생성
             if patch.rule_type == 'regex_improvement':
                 success = self._apply_regex_improvement(patch)
@@ -205,6 +209,8 @@ class AutoPatchEngine:
                 success = self._apply_new_pattern(patch)
             elif patch.rule_type == 'filter_enhancement':
                 success = self._apply_filter_enhancement(patch)
+            elif patch.rule_type in ['legal_filtering', 'noise_removal', 'redundancy_removal']:
+                success = self._apply_ai_rule(patch)
             else:
                 success = self._apply_generic_patch(patch)
             
@@ -318,6 +324,31 @@ class AutoPatchEngine:
             
         except Exception as e:
             logger.error(f"일반 패치 적용 오류: {e}")
+            return False
+    
+    def _apply_ai_rule(self, patch: PatchSuggestion) -> bool:
+        """AI 제안 규칙 적용"""
+        try:
+            print(f"🔧 DEBUG: AI 규칙 적용 - {patch.description}")
+            
+            # AI 제안에 맞는 DSL 규칙 생성
+            new_rule = DSLRule(
+                rule_id=f"ai_{patch.rule_type}_{patch.suggestion_id}",
+                rule_type=patch.rule_type,
+                pattern=patch.pattern_before,  # AI가 제거하려는 패턴
+                replacement=patch.pattern_after,  # 대체할 내용 (보통 빈 문자열)
+                priority=80,  # 높은 우선순위
+                description=f"AI 제안: {patch.description}",
+                performance_score=patch.confidence_score
+            )
+            
+            result = dsl_manager.add_rule(new_rule)
+            print(f"🔧 DEBUG: DSL 규칙 추가 결과: {result}")
+            return result
+            
+        except Exception as e:
+            print(f"🔧 ERROR: AI 규칙 적용 오류: {e}")
+            logger.error(f"AI 규칙 적용 오류: {e}")
             return False
     
     def auto_apply_patches(self, patches: List[PatchSuggestion], 
