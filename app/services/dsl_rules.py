@@ -284,29 +284,28 @@ class DSLRuleManager:
             self.rules[rule.rule_id] = rule
     
     def _load_individual_rules_from_mongodb(self) -> int:
-        """개별 규칙 컬렉션에서 규칙들을 로드"""
+        """개별 규칙 컬렉션에서 규칙들을 로드 (동기식)"""
         try:
-            from app.core.database import db_manager
+            # 동기식 pymongo 클라이언트 사용
+            import pymongo
+            import os
             
-            collection = db_manager.get_collection("dsl_rules_individual")
-            if collection is None:
+            mongodb_url = os.getenv('MONGODB_URL')
+            if not mongodb_url:
+                print(f"🔧 DEBUG: MONGODB_URL 환경변수가 없음, 개별 규칙 로드 건너뜀")
                 return 0
             
-            import asyncio
+            print(f"🔧 DEBUG: 개별 규칙 로드를 위한 동기식 MongoDB 클라이언트 연결...")
             
-            async def load_individual_async():
-                cursor = collection.find({})
-                documents = await cursor.to_list(length=None)  # 모든 개별 규칙 로드
-                return documents
+            # 동기식 클라이언트로 직접 연결
+            client = pymongo.MongoClient(mongodb_url)
+            db = client[os.getenv('MONGODB_DB', 'legal_db')]
+            collection = db['dsl_rules_individual']
             
-            # 동기 함수에서 비동기 호출
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            # 모든 개별 규칙 로드
+            documents = list(collection.find({}))
             
-            documents = loop.run_until_complete(load_individual_async())
+            print(f"🔧 DEBUG: 개별 규칙 문서 {len(documents)}개 발견")
             
             count = 0
             for doc in documents:
@@ -319,9 +318,13 @@ class DSLRuleManager:
                     rule = DSLRule.from_dict(doc)
                     self.rules[rule.rule_id] = rule
                     count += 1
+                    print(f"🔧 DEBUG: 개별 규칙 로드 성공 - {rule.rule_id}")
                 except Exception as e:
                     print(f"🔧 WARNING: 개별 규칙 로드 실패 - {doc.get('rule_id', 'unknown')}: {e}")
                     continue
+            
+            # 연결 종료
+            client.close()
             
             return count
             
@@ -416,18 +419,27 @@ class DSLRuleManager:
             return False
     
     def _save_single_rule_to_mongodb(self, rule: DSLRule) -> bool:
-        """개별 규칙을 MongoDB에 저장 (upsert)"""
+        """개별 규칙을 MongoDB에 저장 (동기식 클라이언트 사용)"""
         try:
             print(f"🔧 DEBUG: 개별 규칙 MongoDB 저장 시작 - ID: {rule.rule_id}")
             
-            from app.core.database import db_manager
+            # 동기식 pymongo 클라이언트 사용
+            import pymongo
+            import os
             
-            collection = db_manager.get_collection("dsl_rules_individual")
-            print(f"🔧 DEBUG: 개별 규칙 컬렉션 객체: {collection}")
-            
-            if collection is None:
-                print(f"🔧 ERROR: 개별 규칙 컬렉션을 가져올 수 없음")
+            mongodb_url = os.getenv('MONGODB_URL')
+            if not mongodb_url:
+                print(f"🔧 ERROR: MONGODB_URL 환경변수가 없음")
                 return False
+            
+            print(f"🔧 DEBUG: 동기식 MongoDB 클라이언트 연결 시도...")
+            
+            # 동기식 클라이언트로 직접 연결
+            client = pymongo.MongoClient(mongodb_url)
+            db = client[os.getenv('MONGODB_DB', 'legal_db')]
+            collection = db['dsl_rules_individual']
+            
+            print(f"🔧 DEBUG: 동기식 컬렉션 연결 성공")
             
             # 규칙 데이터 준비
             rule_data = rule.to_dict()
@@ -435,57 +447,25 @@ class DSLRuleManager:
             
             print(f"🔧 DEBUG: 개별 규칙 데이터 준비 완료 - ID: {rule.rule_id}")
             
-            # 비동기 저장
-            import asyncio
+            # 동기식 upsert 수행
+            result = collection.replace_one(
+                {"_id": rule.rule_id}, 
+                rule_data, 
+                upsert=True
+            )
             
-            async def save_single_rule_async():
-                try:
-                    print(f"🔧 DEBUG: 개별 규칙 비동기 저장 시작...")
-                    
-                    # upsert: 존재하면 업데이트, 없으면 삽입
-                    result = await collection.replace_one(
-                        {"_id": rule.rule_id}, 
-                        rule_data, 
-                        upsert=True
-                    )
-                    
-                    print(f"🔧 DEBUG: 개별 규칙 저장 완료 - Matched: {result.matched_count}, Modified: {result.modified_count}, Upserted: {result.upserted_id}")
-                    
-                    return result.matched_count > 0 or result.upserted_id is not None
-                except Exception as e:
-                    print(f"🔧 ERROR: 개별 규칙 비동기 저장 중 오류: {e}")
-                    return False
+            print(f"🔧 DEBUG: 개별 규칙 저장 완료 - Matched: {result.matched_count}, Modified: {result.modified_count}, Upserted: {result.upserted_id}")
             
-            # 동기 함수에서 비동기 호출
-            try:
-                print(f"🔧 DEBUG: 개별 규칙 이벤트 루프 처리...")
-                import asyncio
-                
-                # 새로운 이벤트 루프에서 실행 (기존 루프 충돌 방지)
-                success = asyncio.run(save_single_rule_async())
-                print(f"🔧 DEBUG: 개별 규칙 저장 완료 - 결과: {success}")
-                
-                return success
-                
-            except Exception as e:
-                print(f"🔧 ERROR: 개별 규칙 이벤트 루프 오류: {e}")
-                # 기존 방식으로 폴백
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # 이미 실행 중인 루프에서는 create_task 사용
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor() as executor:
-                            future = executor.submit(asyncio.run, save_single_rule_async())
-                            return future.result(timeout=10)
-                    else:
-                        return loop.run_until_complete(save_single_rule_async())
-                except Exception as fallback_error:
-                    print(f"🔧 ERROR: 개별 규칙 폴백 저장 실패: {fallback_error}")
-                    return False
+            # 연결 종료
+            client.close()
+            
+            success = result.matched_count > 0 or result.upserted_id is not None
+            print(f"🔧 DEBUG: 개별 규칙 저장 결과: {success}")
+            
+            return success
             
         except Exception as e:
-            print(f"🔧 ERROR: 개별 규칙 저장 최종 오류: {e}")
+            print(f"🔧 ERROR: 개별 규칙 저장 오류: {e}")
             logger.error(f"개별 규칙 MongoDB 저장 실패: {e}")
             return False
     
