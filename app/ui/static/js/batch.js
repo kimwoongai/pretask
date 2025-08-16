@@ -8,12 +8,26 @@ let batchStatsInterval = null;
 
 // DOM 로드 완료 시 초기화
 document.addEventListener('DOMContentLoaded', function() {
-    initializeBatchPage();
+    // Utils 객체가 로드될 때까지 기다림
+    if (typeof Utils !== 'undefined') {
+        initializeBatchPage();
+    } else {
+        // Utils가 아직 로드되지 않은 경우 잠시 후 재시도
+        setTimeout(() => {
+            if (typeof Utils !== 'undefined') {
+                initializeBatchPage();
+            } else {
+                console.error('Utils object not loaded. Please check if common.js is included.');
+                // Utils 없이도 기본 기능은 작동하도록 폴백
+                initializeBatchPageWithoutUtils();
+            }
+        }, 100);
+    }
 });
 
 // 페이지 초기화
 function initializeBatchPage() {
-    console.log('Batch page initialized');
+    console.log('Batch page initialized with Utils');
     
     // 이벤트 리스너 설정
     setupEventListeners();
@@ -24,6 +38,17 @@ function initializeBatchPage() {
     
     // 주기적 업데이트 시작
     startPeriodicUpdates();
+}
+
+// Utils 없이 페이지 초기화 (폴백)
+function initializeBatchPageWithoutUtils() {
+    console.log('Batch page initialized without Utils (fallback mode)');
+    
+    // 기본 이벤트 리스너만 설정
+    setupEventListenersWithoutUtils();
+    
+    // 기본 상태 표시
+    showFallbackMessage();
 }
 
 // 이벤트 리스너 설정
@@ -276,6 +301,78 @@ function updateStatElement(elementId, value) {
 window.addEventListener('beforeunload', function() {
     stopPeriodicUpdates();
 });
+
+// Utils 없이 이벤트 리스너 설정 (폴백)
+function setupEventListenersWithoutUtils() {
+    // 배치 시작 버튼
+    const startBatchBtn = document.getElementById('start-batch-btn');
+    if (startBatchBtn) {
+        startBatchBtn.addEventListener('click', function() {
+            alert('Utils 객체를 로드할 수 없어 배치 처리를 시작할 수 없습니다. 페이지를 새로고침해 주세요.');
+        });
+    }
+}
+
+// 폴백 메시지 표시
+function showFallbackMessage() {
+    const statusElement = document.getElementById('batch-status');
+    if (statusElement) {
+        statusElement.innerHTML = '<span class="badge bg-warning">시스템 로딩 중...</span>';
+    }
+}
+
+// Utils 폴백 함수들
+const UtilsFallback = {
+    showLoading: function(message) {
+        console.log('Loading:', message);
+    },
+    hideLoading: function() {
+        console.log('Loading hidden');
+    },
+    showSuccess: function(message) {
+        alert('성공: ' + message);
+    },
+    showError: function(message) {
+        alert('오류: ' + message);
+    },
+    showWarning: function(message) {
+        alert('경고: ' + message);
+    },
+    formatPercent: function(value) {
+        return (value * 100).toFixed(1) + '%';
+    },
+    formatDateTime: function(dateString) {
+        return new Date(dateString).toLocaleString('ko-KR');
+    }
+};
+
+// 배치 처리 시작 (Utils 폴백 버전)
+async function startBatchProcessingFallback() {
+    try {
+        const settings = getBatchSettings();
+        
+        UtilsFallback.showLoading('배치 처리를 시작하는 중...');
+        
+        const response = await API.post('/batch/start', settings);
+        currentBatchJob = response.job_id;
+        
+        UtilsFallback.hideLoading();
+        UtilsFallback.showSuccess('배치 처리가 시작되었습니다.');
+        
+        // UI 상태 업데이트
+        updateBatchControlsUI(true);
+        
+    } catch (error) {
+        UtilsFallback.hideLoading();
+        UtilsFallback.showError('배치 처리 시작 실패: ' + error.message);
+        console.error('Failed to start batch processing:', error);
+    }
+}
+
+// Utils가 없는 경우 Utils 함수들을 폴백으로 교체
+if (typeof Utils === 'undefined') {
+    window.Utils = UtilsFallback;
+}
 
 // 전역 함수로 내보내기 (필요한 경우)
 window.BatchJS = {
