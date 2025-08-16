@@ -39,7 +39,7 @@ async def test_database_connection():
             
             # 컬렉션 확인
             collection = db_manager.get_collection("precedents_v2")
-            if collection:
+            if collection is not None:
                 try:
                     count = await collection.count_documents({})
                     print(f"📊 precedents_v2 collection has {count} documents")
