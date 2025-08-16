@@ -469,12 +469,54 @@ class DSLRuleManager:
             logger.error(f"개별 규칙 MongoDB 저장 실패: {e}")
             return False
     
+    def _reload_all_rules(self):
+        """모든 규칙을 다시 로드 (기본 + 개별 규칙)"""
+        try:
+            print(f"🔧 DEBUG: 전체 규칙 다시 로드 시작...")
+            
+            # 현재 규칙 백업 (실패시 복구용)
+            backup_rules = self.rules.copy()
+            
+            # 기본 규칙 다시 로드
+            if self._load_from_mongodb():
+                print(f"🔧 DEBUG: 기본 규칙 다시 로드 완료: {len(self.rules)}개")
+            else:
+                print(f"🔧 DEBUG: 기본 규칙 없음, 기본 규칙 생성")
+                self._create_default_rules()
+            
+            # 개별 규칙 다시 로드
+            individual_count = self._load_individual_rules_from_mongodb()
+            print(f"🔧 DEBUG: 개별 규칙 다시 로드 완료: {individual_count}개")
+            
+            print(f"🔧 DEBUG: 전체 규칙 다시 로드 완료 - 총 {len(self.rules)}개 규칙")
+            
+        except Exception as e:
+            print(f"🔧 ERROR: 규칙 다시 로드 실패: {e}")
+            # 실패시 백업 복구
+            self.rules = backup_rules
+            logger.error(f"규칙 다시 로드 실패, 백업 복구: {e}")
+    
+    def _find_duplicate_rule(self, new_rule: DSLRule) -> Optional[DSLRule]:
+        """중복 규칙 찾기 (동일한 패턴과 타입)"""
+        for existing_rule in self.rules.values():
+            if (existing_rule.rule_type == new_rule.rule_type and 
+                existing_rule.pattern == new_rule.pattern):
+                return existing_rule
+        return None
+    
     def add_rule(self, rule: DSLRule) -> bool:
         """규칙 추가 - 개별 규칙만 MongoDB에 추가/업데이트"""
         try:
             print(f"🔧 DEBUG: DSL 규칙 추가 시도 - ID: {rule.rule_id}")
             print(f"🔧 DEBUG: 규칙 패턴: {rule.pattern}")
             print(f"🔧 DEBUG: 규칙 타입: {rule.rule_type}")
+            
+            # 중복 규칙 확인
+            existing_rule = self._find_duplicate_rule(rule)
+            if existing_rule:
+                print(f"🔧 WARNING: 중복 규칙 발견 - 기존: {existing_rule.rule_id}, 패턴: {existing_rule.pattern}")
+                print(f"🔧 DEBUG: 중복 규칙이므로 추가하지 않음")
+                return True  # 중복이지만 성공으로 처리 (이미 해당 규칙이 존재하므로)
             
             # 메모리에 규칙 추가
             self.rules[rule.rule_id] = rule
@@ -486,6 +528,14 @@ class DSLRuleManager:
             
             if save_result:
                 logger.info(f"규칙 추가: {rule.rule_id}")
+                
+                # 중요: 새 규칙 추가 후 전체 규칙을 다시 로드하여 메모리 동기화
+                print(f"🔧 DEBUG: 새 규칙 추가 완료, 전체 규칙 다시 로드 중...")
+                old_count = len(self.rules)
+                self._reload_all_rules()
+                new_count = len(self.rules)
+                print(f"🔧 DEBUG: 규칙 다시 로드 완료 - {old_count}개 → {new_count}개")
+                
                 return True
             else:
                 print(f"🔧 ERROR: MongoDB 저장 실패, 메모리에서 규칙 제거")
