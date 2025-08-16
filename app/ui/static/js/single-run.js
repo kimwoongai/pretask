@@ -248,7 +248,20 @@ function displayRuleSuggestions(suggestions) {
             </div>
             <div class="mb-2">
                 <strong>패턴:</strong>
-                <code class="d-block bg-light p-2 mt-1">${suggestion.pattern}</code>
+                <div class="mt-1">
+                    ${suggestion.pattern_before ? `
+                        <div class="mb-1">
+                            <small class="text-muted">현재:</small>
+                            <code class="d-block bg-light p-2">${suggestion.pattern_before}</code>
+                        </div>
+                        <div class="mb-1">
+                            <small class="text-muted">개선 후:</small>
+                            <code class="d-block bg-success-subtle p-2">${suggestion.pattern_after}</code>
+                        </div>
+                    ` : `
+                        <code class="d-block bg-light p-2">${suggestion.pattern || '정규식 패턴'}</code>
+                    `}
+                </div>
             </div>
             <div class="mb-3">
                 <strong>대체:</strong>
