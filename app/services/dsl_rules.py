@@ -41,14 +41,17 @@ class DSLRule:
                 new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE)
                 applied = new_text != text
             elif self.rule_type == 'fact_extraction':
-                # 사실 추출 규칙 (매치되는 부분만 추출)
-                matches = re.findall(self.pattern, text, flags=re.DOTALL | re.IGNORECASE)
-                if matches:
-                    new_text = ' '.join(matches)
-                    applied = True
-                else:
-                    new_text = text
-                    applied = False
+                # 사실 추출 규칙 (2단계에서 사용 예정 - 현재는 비활성화)
+                # matches = re.findall(self.pattern, text, flags=re.DOTALL | re.IGNORECASE)
+                # if matches:
+                #     new_text = ' '.join(matches)
+                #     applied = True
+                # else:
+                #     new_text = text
+                #     applied = False
+                # 1단계에서는 사실 추출 규칙 적용하지 않음
+                new_text = text
+                applied = False
             elif self.rule_type == 'legal_filtering':
                 # 법리 문장 필터링 (매치되는 문장 제거)
                 sentences = re.split(r'[.!?]\s+', text)
@@ -251,32 +254,6 @@ class DSLRuleManager:
                 replacement="",
                 priority=70,
                 description="결론 섹션 필터링"
-            ),
-            
-            # 사실 추출 규칙
-            DSLRule(
-                rule_id="date_extraction",
-                rule_type="fact_extraction",
-                pattern=r'\d{4}[.\-/년]\s*\d{1,2}[.\-/월]\s*\d{1,2}[.\-/일]?[^.]*[.]',
-                replacement="",
-                priority=60,
-                description="날짜 포함 문장 추출"
-            ),
-            DSLRule(
-                rule_id="amount_extraction",
-                rule_type="fact_extraction",
-                pattern=r'[^.]*\d{1,3}(?:,\d{3})*(?:원|만원|억원)[^.]*[.]',
-                replacement="",
-                priority=55,
-                description="금액 포함 문장 추출"
-            ),
-            DSLRule(
-                rule_id="party_action_extraction",
-                rule_type="fact_extraction",
-                pattern=r'[^.]*(?:원고|피고|신청인|피신청인).*?(?:계약|출원|등록|양도|부과|통지|제기)[^.]*[.]',
-                replacement="",
-                priority=50,
-                description="당사자 행위 문장 추출"
             )
         ]
         
