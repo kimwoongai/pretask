@@ -383,17 +383,34 @@ class OpenAIService:
     
     async def _create_batch_file(self, requests: List[Dict[str, Any]]) -> Any:
         """배치 파일 생성"""
+        import io
+        
+        print(f"🔍 DEBUG: 배치 파일 생성 시작 - {len(requests)}개 요청")
         
         # JSONL 형식으로 변환
         jsonl_content = "\n".join(json.dumps(req) for req in requests)
         
-        # 파일 업로드
-        file_response = await self.client.files.create(
-            file=jsonl_content.encode(),
-            purpose="batch"
-        )
+        print(f"🔍 DEBUG: JSONL 콘텐츠 생성 완료 - {len(jsonl_content)} 문자")
         
-        return file_response
+        # BytesIO 객체로 파일 생성
+        file_obj = io.BytesIO(jsonl_content.encode('utf-8'))
+        file_obj.name = 'batch_requests.jsonl'  # 파일명 설정
+        
+        print(f"🔍 DEBUG: 파일 객체 생성 완료 - {file_obj.name}")
+        
+        # 파일 업로드
+        try:
+            file_response = await self.client.files.create(
+                file=file_obj,
+                purpose="batch"
+            )
+            
+            print(f"✅ DEBUG: 배치 파일 업로드 성공 - ID: {file_response.id}")
+            return file_response
+            
+        except Exception as e:
+            print(f"❌ DEBUG: 배치 파일 업로드 실패: {e}")
+            raise
     
     async def _wait_for_batch_completion(self, batch_id: str, max_wait_time: int = 3600) -> Any:
         """배치 완료 대기"""
