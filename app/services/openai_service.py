@@ -170,16 +170,21 @@ class OpenAIService:
 2. 발견된 문제점들을 errors 배열에 나열하세요
 3. **전처리된 텍스트를 분석하여 개선 가능한 패턴을 찾아 제안하세요**
 
-**개선 제안 생성:**
-- **발견한 모든 개선 가능한 패턴을 제안하세요**
-- 전처리된 텍스트를 분석하여 다음과 같은 개선점들을 찾아 제안하세요:
-  * 중복되는 정보 (법원명, 사건번호, 날짜 등)
-  * 복잡한 참조 정보 (판례 인용, 법조문 참조)
-  * 불필요한 구조적 요소 (페이지 번호, 구분선 등)
-  * 형식적 표현의 정규화 기회
-  * 과도한 상세 정보나 설명
-  * 반복되는 패턴이나 문구
-  * 간소화 가능한 표현
+**개선 제안 생성 (노이즈 제거 전용):**
+- **노이즈 제거에만 집중한 개선 패턴을 제안하세요**
+- **중요: 사실관계나 법적 내용은 절대 변경하지 마세요 (2단계에서 처리)**
+- 다음과 같은 **노이즈 제거** 개선점만 찾아 제안하세요:
+  * UI 요소 제거 (저장, 인쇄, 보관, 검색, 닫기 등)
+  * 시스템 메뉴 제거 (PDF로 보기, Tip1, Tip2 등)
+  * 중복 표시 정보 (동일한 법원명, 사건번호의 반복)
+  * 페이지 번호, 구분선, 공백 등 구조적 노이즈
+  * 불필요한 참조 정보 (빈 판례 목록 등)
+  
+**절대 제안하지 말 것:**
+  * 사실관계 축약이나 요약
+  * 법적 내용의 간소화
+  * 판결 내용의 변경
+  * 중요한 정보의 제거나 축약
 
 **평가 기준:**
 1. NRR (Noise Reduction Rate): 불필요한 문구 제거율 (0-1)
@@ -206,22 +211,22 @@ class OpenAIService:
     ],
     "suggestions": [
         {{
-            "description": "중복 법원명 정보 통합",
-            "confidence_score": 0.85,
+            "description": "문서 관리 UI 요소 제거",
+            "confidence_score": 0.90,
             "rule_type": "noise_removal",
-            "estimated_improvement": "법원명 중복 제거로 2-3% 간소화",
+            "estimated_improvement": "UI 노이즈 제거로 3-5% 간소화",
             "applicable_cases": ["모든 문서"],
-            "pattern_before": "서울행정법원.*?서울고등법원.*?대법원",
-            "pattern_after": "대법원"
+            "pattern_before": "저장 인쇄 보관 전자팩스 공유 화면내 검색 조회 닫기",
+            "pattern_after": ""
         }},
         {{
-            "description": "판례 인용 정보 축약",
-            "confidence_score": 0.80,
-            "rule_type": "legal_filtering", 
-            "estimated_improvement": "판례 참조 간소화로 1-2% 축약",
-            "applicable_cases": ["대법원", "고등법원"],
-            "pattern_before": "\\d{{4}}\\. \\d{{1,2}}\\. \\d{{1,2}}\\. 선고 \\d{{4}}[가-힣]+\\d+ 판결",
-            "pattern_after": "판례"
+            "description": "빈 참조 정보 제거",
+            "confidence_score": 0.85,
+            "rule_type": "noise_removal", 
+            "estimated_improvement": "불필요한 참조 정보 제거로 1-2% 간소화",
+            "applicable_cases": ["모든 문서"],
+            "pattern_before": "참조판례 0 건 인용판례 0 건",
+            "pattern_after": ""
         }}
     ]
 }}
