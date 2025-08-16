@@ -1515,3 +1515,85 @@ async def get_dsl_versions():
         print(f"🔍 ERROR: {error_msg}")
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
+
+
+# 배치 처리 관련 엔드포인트
+@router.get("/batch/stats")
+async def get_batch_stats():
+    """배치 처리 통계 조회"""
+    try:
+        # 실제 배치 처리 시스템이 구현되면 여기서 실제 데이터 조회
+        return {
+            "status": "idle",
+            "total_processed": 0,
+            "success_rate": 0.0,
+            "current_cycle": 0,
+            "progress": 0.0,
+            "estimated_completion": None
+        }
+    except Exception as e:
+        logger.error(f"배치 통계 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"배치 통계 조회 실패: {str(e)}")
+
+
+@router.get("/batch/history")
+async def get_batch_history(limit: int = 10):
+    """배치 처리 이력 조회"""
+    try:
+        # 실제 배치 처리 시스템이 구현되면 여기서 실제 데이터 조회
+        return []
+    except Exception as e:
+        logger.error(f"배치 이력 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"배치 이력 조회 실패: {str(e)}")
+
+
+@router.post("/batch/start")
+async def start_batch_processing(settings: dict):
+    """배치 처리 시작"""
+    try:
+        # 실제 배치 처리 시스템이 구현되면 여기서 배치 작업 시작
+        job_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        logger.info(f"배치 처리 시작 요청: {job_id}, 설정: {settings}")
+        
+        return {
+            "job_id": job_id,
+            "status": "started",
+            "message": "배치 처리가 시작되었습니다"
+        }
+    except Exception as e:
+        logger.error(f"배치 처리 시작 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"배치 처리 시작 실패: {str(e)}")
+
+
+@router.post("/batch/stop/{job_id}")
+async def stop_batch_processing(job_id: str):
+    """배치 처리 중지"""
+    try:
+        # 실제 배치 처리 시스템이 구현되면 여기서 배치 작업 중지
+        logger.info(f"배치 처리 중지 요청: {job_id}")
+        
+        return {
+            "job_id": job_id,
+            "status": "stopped",
+            "message": "배치 처리가 중지되었습니다"
+        }
+    except Exception as e:
+        logger.error(f"배치 처리 중지 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"배치 처리 중지 실패: {str(e)}")
+
+
+@router.post("/batch/settings")
+async def save_batch_settings(settings: dict):
+    """배치 처리 설정 저장"""
+    try:
+        # 실제로는 설정을 데이터베이스나 설정 파일에 저장
+        logger.info(f"배치 설정 저장: {settings}")
+        
+        return {
+            "status": "saved",
+            "message": "설정이 저장되었습니다"
+        }
+    except Exception as e:
+        logger.error(f"배치 설정 저장 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"배치 설정 저장 실패: {str(e)}")
