@@ -183,13 +183,9 @@ class BatchProcessor:
             
             print(f"✅ DEBUG: 샘플 선정 완료 - {len(sample_cases)}개 케이스")
             
-            # 케이스가 없는 경우 처리
+            # 케이스가 없는 경우 오류 발생
             if len(sample_cases) == 0:
-                print(f"⚠️ DEBUG: 샘플 케이스가 0개입니다. MongoDB cases 컬렉션을 확인하세요.")
-                # 테스트용 더미 케이스 생성
-                print(f"🔧 DEBUG: 테스트용 더미 케이스 생성 중...")
-                sample_cases = self._create_dummy_cases(sample_size)
-                print(f"✅ DEBUG: 더미 케이스 생성 완료 - {len(sample_cases)}개")
+                raise Exception("MongoDB cases 컬렉션에서 유효한 케이스를 찾을 수 없습니다. 데이터를 확인해주세요.")
             
             return sample_cases
             
@@ -199,97 +195,6 @@ class BatchProcessor:
             print(f"❌ DEBUG: 오류 상세: {str(e)}")
             logger.error(f"샘플 선정 실패: {e}")
             raise
-    
-    def _create_dummy_cases(self, sample_size: int) -> List[Dict[str, Any]]:
-        """테스트용 더미 케이스 생성"""
-        import uuid
-        
-        dummy_cases = []
-        
-        # 샘플 법률 문서 템플릿
-        sample_texts = [
-            """
-            저장 인쇄 보관 전자팩스 공유 화면내 검색 조회 닫기
-            
-            【판결요지】
-            원고가 피고에게 대여한 금원 5,000만원에 대한 반환을 구하는 사건에서, 
-            피고가 해당 금원을 실제로 차용하였다는 점이 인정되므로 원고의 청구를 인용한다.
-            
-            【주문】
-            1. 피고는 원고에게 금 50,000,000원 및 이에 대하여 2023년 1월 1일부터 
-            완제일까지 연 5%의 비율에 의한 돈을 지급하라.
-            2. 소송비용은 피고가 부담한다.
-            3. 제1항은 가집행할 수 있다.
-            
-            【이유】
-            갑 제1호증의 기재에 의하면, 원고가 피고에게 2022년 12월 1일 
-            5,000만원을 대여하였음이 인정된다.
-            """,
-            """
-            PDF로 보기 Tip1 Tip2 
-            
-            사건번호: 2023가단12345
-            당사자: 원고 김○○, 피고 이○○
-            
-            원고는 2022년 3월 15일 피고와 부동산 매매계약을 체결하였으나, 
-            피고가 계약금을 지급하지 않아 계약해제를 통지하고 
-            손해배상을 구하는 사건이다.
-            
-            계약서상 계약금은 1,000만원으로 정해졌으나, 
-            피고는 이를 약정일인 2022년 3월 20일까지 지급하지 않았다.
-            
-            따라서 원고의 계약해제는 정당하고, 
-            피고는 원고에게 손해배상의 의무가 있다.
-            """,
-            """
-            법원 시스템 메뉴: 검색 | 인쇄 | 저장 | 닫기
-            
-            【사건의 개요】
-            원고 박○○는 피고 최○○에 대하여 교통사고로 인한 
-            손해배상을 청구하는 사건이다.
-            
-            2023년 5월 10일 15시경 서울시 강남구 테헤란로에서 
-            피고가 운전하는 승용차가 신호대기 중이던 원고의 차량을 
-            후방에서 추돌하는 사고가 발생하였다.
-            
-            이로 인해 원고는 경추 염좌 등의 상해를 입었고, 
-            차량 수리비 300만원의 손해가 발생하였다.
-            
-            피고는 전방주시 의무를 게을리한 과실이 있다.
-            """
-        ]
-        
-        for i in range(min(sample_size, len(sample_texts))):
-            case_id = f"dummy_{uuid.uuid4().hex[:8]}"
-            original_content = sample_texts[i % len(sample_texts)]
-            
-            # DSL 규칙 적용하여 전처리
-            processed_content, rule_results = dsl_manager.apply_rules(
-                original_content, 
-                rule_types=None
-            )
-            
-            case_data = {
-                "case_id": case_id,
-                "before_content": original_content,
-                "after_content": processed_content,
-                "metadata": {
-                    "court_type": "지방법원",
-                    "case_type": "민사",
-                    "year": "2023"
-                }
-            }
-            
-            dummy_cases.append(case_data)
-        
-        # 요청된 개수만큼 반복해서 채우기
-        while len(dummy_cases) < sample_size:
-            base_case = dummy_cases[len(dummy_cases) % len(sample_texts)]
-            new_case = base_case.copy()
-            new_case["case_id"] = f"dummy_{uuid.uuid4().hex[:8]}"
-            dummy_cases.append(new_case)
-        
-        return dummy_cases[:sample_size]
     
     async def _process_sequential(self, cases: List[Dict[str, Any]], job: BatchJob) -> List[Any]:
         """순차 처리 (Batch API 대신)"""
