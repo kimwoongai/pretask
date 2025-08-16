@@ -436,21 +436,33 @@ class DSLRuleManager:
         """성능 리포트 생성"""
         total_rules = len(self.rules)
         enabled_rules = len([r for r in self.rules.values() if r.enabled])
+        disabled_rules = total_rules - enabled_rules
         
+        # 규칙 유형별 개수 계산 (UI에서 기대하는 형식)
+        rules_by_type = {}
         type_stats = {}
+        
         for rule in self.rules.values():
-            if rule.rule_type not in type_stats:
-                type_stats[rule.rule_type] = {
+            rule_type = rule.rule_type
+            
+            # 단순 개수 (UI용)
+            if rule_type not in rules_by_type:
+                rules_by_type[rule_type] = 0
+            rules_by_type[rule_type] += 1
+            
+            # 상세 통계 (분석용)
+            if rule_type not in type_stats:
+                type_stats[rule_type] = {
                     'count': 0,
                     'enabled': 0,
                     'avg_usage': 0,
                     'avg_performance': 0
                 }
-            type_stats[rule.rule_type]['count'] += 1
+            type_stats[rule_type]['count'] += 1
             if rule.enabled:
-                type_stats[rule.rule_type]['enabled'] += 1
-            type_stats[rule.rule_type]['avg_usage'] += rule.usage_count
-            type_stats[rule.rule_type]['avg_performance'] += rule.performance_score
+                type_stats[rule_type]['enabled'] += 1
+            type_stats[rule_type]['avg_usage'] += rule.usage_count
+            type_stats[rule_type]['avg_performance'] += rule.performance_score
         
         # 평균 계산
         for stats in type_stats.values():
@@ -462,7 +474,9 @@ class DSLRuleManager:
             'version': self.version,
             'total_rules': total_rules,
             'enabled_rules': enabled_rules,
-            'type_stats': type_stats,
+            'disabled_rules': disabled_rules,
+            'rules_by_type': rules_by_type,  # UI에서 사용
+            'type_stats': type_stats,        # 상세 분석용
             'updated_at': datetime.now().isoformat()
         }
 
