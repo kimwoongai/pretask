@@ -1172,6 +1172,17 @@ def _extract_factual_content_only(content: str) -> str:
     # 5단계: 최종 조립 및 정규화
     final_content = _assemble_and_normalize_facts(pure_fact_sentences)
     
+    # 최종 안전장치: 결과가 너무 짧으면 원본의 일부 사용
+    if len(final_content) < 200:
+        logger.error(f"🚨 전처리 결과가 너무 짧습니다: {len(final_content)}자. 원본 일부 사용...")
+        # 원본에서 처음 2000자 정도 사용 (노이즈 제거만 적용)
+        fallback_content = _clean_text_noise(content)
+        if len(fallback_content) > 2000:
+            final_content = fallback_content[:2000] + "..."
+        else:
+            final_content = fallback_content
+        logger.warning(f"🔧 폴백 적용: {len(final_content)}자")
+    
     logger.info(f"✅ 사실 추출 완료: {len(content)}자 → {len(final_content)}자")
     return final_content
 
@@ -1257,12 +1268,20 @@ def _extract_fact_sentences_only(text: str) -> List[str]:
         # 문장 스코어링
         score = _score_sentence_factuality(sentence)
         
-        # 점수가 0 이상인 문장만 선택 (사실 문장) - 기준 완화
-        if score >= 0:
+        # 점수가 -1 이상인 문장 선택 (더 관대한 기준)
+        if score >= -1:
             fact_sentences.append(sentence.strip())
             logger.debug(f"✅ 사실 문장 (점수 {score}): {sentence[:50]}...")
         else:
             logger.debug(f"❌ 제외 문장 (점수 {score}): {sentence[:50]}...")
+    
+    # 안전장치: 결과가 너무 적으면 원본의 일부라도 사용
+    if len(fact_sentences) < 5:
+        logger.warning(f"⚠️ 사실 문장이 너무 적습니다 ({len(fact_sentences)}개). 원본 문장 일부 추가...")
+        # 원본에서 최소한의 문장들 추가 (길이 기준)
+        all_sentences = [s.strip() for s in sentences if len(s.strip()) > 30]
+        fact_sentences.extend(all_sentences[:10])  # 최대 10개 추가
+        fact_sentences = list(set(fact_sentences))  # 중복 제거
     
     logger.info(f"📊 사실 문장 추출: {len(sentences)} → {len(fact_sentences)}개")
     return fact_sentences
