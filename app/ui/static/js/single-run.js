@@ -463,7 +463,7 @@ async function showCurrentRules() {
                     <div class="col-3">
                         <div class="text-center">
                             <div class="h5 text-info">${Utils.formatNumber(ruleData.performance.avg_fpr, 3)}</div>
-                            <small>FPR</small>
+                            <small>ICR</small>
                         </div>
                     </div>
                     <div class="col-3">

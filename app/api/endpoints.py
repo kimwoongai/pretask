@@ -136,12 +136,15 @@ async def process_single_case(case_id: str):
         
         # OpenAI API 호출
         try:
+            print("🔍 DEBUG: Starting OpenAI evaluation...")
             logger.info("Starting OpenAI evaluation...")
             metrics, errors, suggestions = await openai_service.evaluate_single_case(
                 original_content, processed_content, case_metadata
             )
+            print(f"🔍 DEBUG: OpenAI evaluation completed - metrics: nrr={metrics.nrr}, fpr={metrics.fpr}, ss={metrics.ss}")
             logger.info("OpenAI evaluation completed successfully")
         except Exception as eval_error:
+            print(f"🔍 DEBUG: OpenAI evaluation failed: {eval_error}")
             logger.error(f"OpenAI evaluation failed: {eval_error}")
             # OpenAI 실패 시 기본값 반환
             from app.models.document import QualityMetrics

@@ -27,9 +27,12 @@ class OpenAIService:
     ) -> Tuple[QualityMetrics, List[str], str]:
         """단일 케이스 평가"""
         
+        print("🔍 DEBUG: OpenAI evaluate_single_case called")
         prompt = self._create_evaluation_prompt(before_content, after_content, case_metadata)
+        print(f"🔍 DEBUG: Prompt created, length: {len(prompt)}")
         
         try:
+            print("🔍 DEBUG: Making OpenAI API call...")
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -40,7 +43,10 @@ class OpenAIService:
                 max_tokens=2000
             )
             
+            print("🔍 DEBUG: OpenAI API call successful")
             result_text = response.choices[0].message.content
+            print(f"🔍 DEBUG: OpenAI raw response length: {len(result_text) if result_text else 0}")
+            print(f"🔍 DEBUG: OpenAI raw response: {result_text}")
             logger.info(f"OpenAI raw response: {result_text}")
             return self._parse_evaluation_result(result_text, before_content, after_content)
             
@@ -160,16 +166,17 @@ class OpenAIService:
 {after_content[:500]}...
 
 **평가 기준:**
-1. NRR (Noise Reduction Rate): 불필요한 내용 제거 정도 (0-1)
-2. FPR (False Positive Rate): 중요한 내용 보존 정도 (0-1)
-3. SS (Semantic Similarity): 의미 유사성 유지 정도 (0-1)
-4. 토큰 절감률: 토큰 수 감소 비율 (%)
+1. NRR (Noise Reduction Rate): 불필요한 문구 제거율 (0 = 제거 없음, 1 = 완전 제거)
+2. ICR (Important Content Retention): 중요한 사실 보존율 (0 = 전부 소실, 1 = 완전 보존)
+3. SS (Semantic Similarity): 의미 유사성 유지 정도 (0 = 전혀 다름, 1 = 동일)
+4. 토큰 절감률: (전처리 전 토큰 수 - 전처리 후 토큰 수) ÷ 전처리 전 토큰 수 × 100 (%)
+5. parsing_errors: 파싱 과정에서 발생한 오류 개수
 
 다음 JSON 형식으로 응답해주세요:
 {{
     "metrics": {{
         "nrr": 0.95,
-        "fpr": 0.98,
+        "icr": 0.98,
         "ss": 0.92,
         "token_reduction": 25.5,
         "parsing_errors": 0
@@ -181,7 +188,7 @@ class OpenAIService:
             "confidence_score": 0.85,
             "rule_type": "regex_improvement",
             "estimated_improvement": "5-8% 토큰 절감",
-            "applicable_cases": ["민사", "형사"],
+            "applicable_cases": ["민사", "형사", "행정"],
             "pattern_before": "현재 패턴",
             "pattern_after": "개선된 패턴"
         }}
@@ -225,11 +232,12 @@ class OpenAIService:
         """평가 결과 파싱"""
         
         try:
+            print(f"🔍 DEBUG: Attempting to parse JSON: {result_text}")
             result_data = json.loads(result_text)
             
             metrics = QualityMetrics(
                 nrr=result_data["metrics"]["nrr"],
-                fpr=result_data["metrics"]["fpr"],
+                fpr=result_data["metrics"]["icr"],  # ICR을 fpr 필드에 저장 (기존 호환성)
                 ss=result_data["metrics"]["ss"],
                 token_reduction=result_data["metrics"]["token_reduction"],
                 parsing_errors=result_data["metrics"].get("parsing_errors", 0)
