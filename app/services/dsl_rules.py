@@ -287,13 +287,14 @@ class DSLRuleManager:
             # MongoDB에 저장
             if self._save_to_mongodb(data):
                 logger.info(f"DSL 규칙 MongoDB 저장 완료: {len(self.rules)}개 규칙")
+                return True
             else:
                 logger.error("MongoDB 저장 실패!")
-                raise Exception("규칙 저장 실패")
+                return False
             
         except Exception as e:
             logger.error(f"DSL 규칙 저장 실패: {e}")
-            raise
+            return False
     
     def _save_to_mongodb(self, data: Dict[str, Any] = None) -> bool:
         """MongoDB에 규칙 저장"""
@@ -337,11 +338,25 @@ class DSLRuleManager:
     def add_rule(self, rule: DSLRule) -> bool:
         """규칙 추가"""
         try:
+            print(f"🔧 DEBUG: DSL 규칙 추가 시도 - ID: {rule.rule_id}")
+            print(f"🔧 DEBUG: 규칙 패턴: {rule.pattern}")
+            print(f"🔧 DEBUG: 규칙 타입: {rule.rule_type}")
+            
             self.rules[rule.rule_id] = rule
-            self.save_rules()
-            logger.info(f"규칙 추가: {rule.rule_id}")
-            return True
+            print(f"🔧 DEBUG: 메모리에 규칙 추가 완료, 총 {len(self.rules)}개 규칙")
+            
+            save_result = self.save_rules()
+            print(f"🔧 DEBUG: MongoDB 저장 결과: {save_result}")
+            
+            if save_result:
+                logger.info(f"규칙 추가: {rule.rule_id}")
+                return True
+            else:
+                print(f"🔧 ERROR: MongoDB 저장 실패, 메모리에서 규칙 제거")
+                del self.rules[rule.rule_id]  # 저장 실패시 메모리에서도 제거
+                return False
         except Exception as e:
+            print(f"🔧 ERROR: 규칙 추가 실패 - {rule.rule_id}: {e}")
             logger.error(f"규칙 추가 실패 {rule.rule_id}: {e}")
             return False
     
