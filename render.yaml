@@ -2,11 +2,14 @@ services:
   - type: web
     name: document-processing-pipeline
     env: python
+    runtime: python-3.11.8
     buildCommand: ./render-build.sh
     startCommand: python run.py
     plan: starter
     healthCheckPath: /
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
       - key: ENVIRONMENT
         value: production
       - key: SINGLE_RUN_MODE
