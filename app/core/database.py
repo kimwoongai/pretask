@@ -22,22 +22,34 @@ class DatabaseManager:
     async def connect(self):
         """데이터베이스 연결"""
         try:
-            # MongoDB 연결
-            self.mongo_client = AsyncIOMotorClient(settings.mongodb_url)
-            self.mongo_db = self.mongo_client[settings.mongodb_db]
+            # MongoDB 연결 (선택사항)
+            try:
+                self.mongo_client = AsyncIOMotorClient(settings.mongodb_url, serverSelectionTimeoutMS=5000)
+                self.mongo_db = self.mongo_client[settings.mongodb_db]
+                await self.mongo_client.admin.command('ping')
+                logger.info("MongoDB connection established successfully")
+            except Exception as e:
+                logger.warning(f"MongoDB connection failed, running in demo mode: {e}")
+                self.mongo_client = None
+                self.mongo_db = None
             
-            # Redis 연결
-            self.redis_client = redis.from_url(settings.redis_url)
+            # Redis 연결 (선택사항)
+            try:
+                self.redis_client = redis.from_url(settings.redis_url, socket_connect_timeout=5)
+                await self.redis_client.ping()
+                logger.info("Redis connection established successfully")
+            except Exception as e:
+                logger.warning(f"Redis connection failed, running without cache: {e}")
+                self.redis_client = None
             
-            # 연결 테스트
-            await self.mongo_client.admin.command('ping')
-            await self.redis_client.ping()
-            
-            logger.info("Database connections established successfully")
+            logger.info("Database initialization completed")
             
         except Exception as e:
-            logger.error(f"Failed to connect to databases: {e}")
-            raise
+            logger.error(f"Database initialization failed: {e}")
+            # 데이터베이스 없이도 애플리케이션 실행 가능
+            self.mongo_client = None
+            self.mongo_db = None
+            self.redis_client = None
     
     async def disconnect(self):
         """데이터베이스 연결 해제"""
@@ -49,16 +61,18 @@ class DatabaseManager:
         
         logger.info("Database connections closed")
     
-    def get_collection(self, collection_name: str) -> AsyncIOMotorCollection:
+    def get_collection(self, collection_name: str) -> Optional[AsyncIOMotorCollection]:
         """MongoDB 컬렉션 반환"""
         if not self.mongo_db:
-            raise RuntimeError("MongoDB not connected")
+            logger.warning("MongoDB not available, returning None")
+            return None
         return self.mongo_db[collection_name]
     
-    async def get_redis(self) -> redis.Redis:
+    async def get_redis(self) -> Optional[redis.Redis]:
         """Redis 클라이언트 반환"""
         if not self.redis_client:
-            raise RuntimeError("Redis not connected")
+            logger.warning("Redis not available, returning None")
+            return None
         return self.redis_client
 
 
@@ -72,8 +86,12 @@ class DocumentRepository:
     async def save_case(self, case_data: Dict[str, Any]) -> str:
         """케이스 저장"""
         collection = self.db_manager.get_collection(self.collection_name)
-        result = await collection.insert_one(case_data)
-        return str(result.inserted_id)
+        if collection:
+            result = await collection.insert_one(case_data)
+            return str(result.inserted_id)
+        else:
+            # 데모 모드: 더미 ID 반환
+            return f"demo_{case_data.get('case_id', 'unknown')}"
     
     async def get_case(self, case_id: str) -> Optional[Dict[str, Any]]:
         """케이스 조회"""

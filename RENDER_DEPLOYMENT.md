@@ -34,7 +34,14 @@ Render 대시보드에서 다음 환경 변수들을 설정해야 합니다:
 #### 필수 환경 변수
 ```
 OPENAI_API_KEY=your_openai_api_key_here
+MONGODB_URL=mongodb+srv://username:password@cluster.mongodb.net/document_processor?retryWrites=true&w=majority
 ```
+
+> **MongoDB Atlas 연결 문자열**:
+> 1. MongoDB Atlas 대시보드에서 "Connect" 버튼 클릭
+> 2. "Connect your application" 선택
+> 3. Driver: Python, Version: 3.6 or later
+> 4. 연결 문자열 복사하여 `MONGODB_URL`에 설정
 
 #### 선택적 환경 변수 (기본값 사용 가능)
 ```
@@ -50,11 +57,16 @@ LOG_LEVEL=INFO
 
 ### 4. 데이터베이스 설정
 
-`render.yaml`에 정의된 서비스들:
+사용하는 데이터베이스 서비스들:
 
-- **MongoDB**: PostgreSQL 서비스로 자동 생성
-- **Redis**: Redis 서비스로 자동 생성
+- **MongoDB Atlas**: 외부 클라우드 MongoDB (사용자가 관리)
+- **Redis**: Render에서 자동 생성되는 Redis 서비스
 - **Web App**: 메인 애플리케이션
+
+#### MongoDB Atlas 설정:
+1. **네트워크 액세스**: IP 허용 목록에 `0.0.0.0/0` 추가 (모든 IP 허용)
+2. **데이터베이스 사용자**: 읽기/쓰기 권한을 가진 사용자 생성
+3. **데이터베이스**: `document_processor` 데이터베이스 생성
 
 ### 5. 배포 확인
 
@@ -190,14 +202,16 @@ git push origin main
 
 ## 💰 비용 최적화
 
-### Free Tier 활용
-- 개발/테스트 환경으로 적합
-- Sleep mode로 리소스 절약
+### Starter Tier 비용 (월 예상)
+- **Render Web Service**: ~$7
+- **Render Redis**: ~$7
+- **MongoDB Atlas**: 무료 (M0 클러스터) 또는 ~$9 (M2)
+- **총 예상 비용**: $14-23/월
 
-### Paid Tier 고려사항
-- 24/7 운영 필요 시
-- 높은 트래픽 처리 시
-- 더 많은 데이터베이스 용량 필요 시
+### 비용 절약 팁
+- MongoDB Atlas M0 클러스터 사용 (512MB 무료)
+- 트래픽이 적은 시간대 활용
+- 불필요한 API 호출 최소화
 
 ## 📞 지원 및 문의
 
