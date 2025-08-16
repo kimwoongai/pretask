@@ -58,11 +58,20 @@ async def process_single_case(case_id: str):
         import re
         
         # 실제 케이스 데이터 가져오기
+        from app.core.database import db_manager
+        
+        # 데이터베이스 연결 상태 확인
+        logger.info(f"MongoDB client status: {db_manager.mongo_client is not None}")
+        logger.info(f"MongoDB database status: {db_manager.mongo_db is not None}")
+        
         collection = db_manager.get_collection("precedents_v2")
         
         if collection is None:
+            logger.error("MongoDB collection is None - falling back to demo mode")
             # MongoDB 연결이 없는 경우 데모 처리
             return await process_demo_case(case_id)
+        
+        logger.info("Successfully got MongoDB collection, proceeding with real data")
         
         # 케이스 조회
         try:
@@ -206,7 +215,10 @@ async def get_next_case():
         
         collection = db_manager.get_collection("precedents_v2")
         
+        logger.info(f"Next case - MongoDB collection status: {collection is not None}")
+        
         if collection is None:
+            logger.warning("MongoDB collection is None for next case - using demo data")
             # MongoDB 연결이 없는 경우 데모 데이터
             next_case_id = f"demo_case_{random.randint(1, 99):03d}"
             return {"next_case_id": next_case_id}

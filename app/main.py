@@ -39,10 +39,16 @@ async def startup_event():
     """애플리케이션 시작 이벤트"""
     logger.info("Starting Document Processing Pipeline")
     
+    # 환경 변수 확인
+    logger.info(f"Environment: {settings.environment}")
+    logger.info(f"MongoDB URL set: {'Yes' if settings.mongodb_url else 'No'}")
+    logger.info(f"MongoDB DB: {settings.mongodb_db}")
+    logger.info(f"Redis URL set: {'Yes' if settings.redis_url else 'No'}")
+    
     try:
         # 데이터베이스 연결
         await db_manager.connect()
-        logger.info("Database connected successfully")
+        logger.info("Database connection attempt completed")
         
         # 모니터링 시작
         await metrics_collector.start_collecting()

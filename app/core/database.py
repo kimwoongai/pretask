@@ -24,12 +24,34 @@ class DatabaseManager:
         try:
             # MongoDB 연결 (선택사항)
             try:
-                self.mongo_client = AsyncIOMotorClient(settings.mongodb_url, serverSelectionTimeoutMS=5000)
+                logger.info(f"Attempting to connect to MongoDB with URL: {settings.mongodb_url[:20]}...")
+                logger.info(f"Database name: {settings.mongodb_db}")
+                
+                self.mongo_client = AsyncIOMotorClient(
+                    settings.mongodb_url, 
+                    serverSelectionTimeoutMS=10000,  # 10초로 증가
+                    connectTimeoutMS=10000,
+                    socketTimeoutMS=10000
+                )
                 self.mongo_db = self.mongo_client[settings.mongodb_db]
+                
+                # 연결 테스트
                 await self.mongo_client.admin.command('ping')
                 logger.info("MongoDB connection established successfully")
+                
+                # precedents_v2 컬렉션 존재 확인
+                collections = await self.mongo_db.list_collection_names()
+                logger.info(f"Available collections: {collections}")
+                
+                if "precedents_v2" in collections:
+                    count = await self.mongo_db.precedents_v2.count_documents({})
+                    logger.info(f"precedents_v2 collection has {count} documents")
+                else:
+                    logger.warning("precedents_v2 collection not found!")
+                    
             except Exception as e:
-                logger.warning(f"MongoDB connection failed, running in demo mode: {e}")
+                logger.error(f"MongoDB connection failed: {e}")
+                logger.error(f"MongoDB URL: {settings.mongodb_url}")
                 self.mongo_client = None
                 self.mongo_db = None
             
