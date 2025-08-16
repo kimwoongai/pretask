@@ -57,6 +57,26 @@ async def startup_event():
         
         logger.info("Application startup completed")
         
+        # DSL 규칙 시스템 자동 초기화
+        try:
+            from app.services.dsl_rules import dsl_manager
+            logger.info("🔧 DSL 규칙 시스템 초기화 중...")
+            
+            # 규칙 파일이 없으면 자동 생성
+            if not dsl_manager.rules_file.exists():
+                dsl_manager._create_default_rules()
+                dsl_manager.save_rules()
+                performance_report = dsl_manager.get_performance_report()
+                logger.info(f"✅ DSL 규칙 시스템 초기화 완료: {performance_report['total_rules']}개 규칙 생성")
+            else:
+                dsl_manager.load_rules()
+                performance_report = dsl_manager.get_performance_report()
+                logger.info(f"✅ DSL 규칙 시스템 로드 완료: {performance_report['total_rules']}개 규칙")
+                
+        except Exception as e:
+            logger.error(f"❌ DSL 규칙 시스템 초기화 실패: {e}")
+            logger.warning("⚠️ 기본 전처리 시스템으로 계속 진행...")
+        
     except Exception as e:
         logger.error(f"Failed to start application: {e}")
         raise
