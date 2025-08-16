@@ -82,13 +82,39 @@ async function loadProcessingStats() {
             '<span class="badge bg-success">준비완료</span>' : 
             '<span class="badge bg-secondary">준비중</span>';
         
-        // Batch stats (mock data for now)
-        document.getElementById('batch-cycles').textContent = '3';
-        document.getElementById('batch-stable').innerHTML = '<span class="badge bg-warning">개선중</span>';
+        // Batch stats - 실제 데이터 또는 기본값
+        try {
+            const batchStats = await API.get('/batch/stats').catch(() => null);
+            if (batchStats) {
+                document.getElementById('batch-cycles').textContent = batchStats.cycles || '0';
+                document.getElementById('batch-stable').innerHTML = batchStats.is_stable ? 
+                    '<span class="badge bg-success">안정</span>' : 
+                    '<span class="badge bg-warning">개선중</span>';
+            } else {
+                document.getElementById('batch-cycles').textContent = '0';
+                document.getElementById('batch-stable').innerHTML = '<span class="badge bg-secondary">대기중</span>';
+            }
+        } catch (error) {
+            document.getElementById('batch-cycles').textContent = '0';
+            document.getElementById('batch-stable').innerHTML = '<span class="badge bg-secondary">대기중</span>';
+        }
         
-        // Full processing stats (mock data for now)
-        document.getElementById('full-ready').innerHTML = '<span class="badge bg-secondary">대기중</span>';
-        document.getElementById('full-progress').textContent = '0%';
+        // Full processing stats - 실제 데이터 또는 기본값
+        try {
+            const fullStats = await API.get('/full/stats').catch(() => null);
+            if (fullStats) {
+                document.getElementById('full-ready').innerHTML = fullStats.ready ? 
+                    '<span class="badge bg-success">준비완료</span>' : 
+                    '<span class="badge bg-secondary">대기중</span>';
+                document.getElementById('full-progress').textContent = `${fullStats.progress || 0}%`;
+            } else {
+                document.getElementById('full-ready').innerHTML = '<span class="badge bg-secondary">대기중</span>';
+                document.getElementById('full-progress').textContent = '0%';
+            }
+        } catch (error) {
+            document.getElementById('full-ready').innerHTML = '<span class="badge bg-secondary">대기중</span>';
+            document.getElementById('full-progress').textContent = '0%';
+        }
         
     } catch (error) {
         console.error('Failed to load processing stats:', error);
@@ -126,27 +152,8 @@ async function loadRecentResults() {
     const container = document.getElementById('recent-results');
     
     try {
-        // Mock data for recent results
-        const recentResults = [
-            {
-                case_id: 'case_001',
-                status: 'completed',
-                timestamp: new Date(Date.now() - 300000).toISOString(), // 5 minutes ago
-                metrics: { nrr: 0.94, fpr: 0.988, ss: 0.92, token_reduction: 23.5 }
-            },
-            {
-                case_id: 'case_002', 
-                status: 'completed',
-                timestamp: new Date(Date.now() - 600000).toISOString(), // 10 minutes ago
-                metrics: { nrr: 0.91, fpr: 0.983, ss: 0.89, token_reduction: 18.2 }
-            },
-            {
-                case_id: 'case_003',
-                status: 'failed',
-                timestamp: new Date(Date.now() - 900000).toISOString(), // 15 minutes ago
-                error: 'Quality gate failed: NRR below threshold'
-            }
-        ];
+        // 실제 최근 처리 결과 조회
+        const recentResults = await API.get('/processed-cases?limit=10&sort=created_at&order=desc').catch(() => []);
         
         container.innerHTML = '';
         
@@ -194,38 +201,100 @@ async function loadRecentResults() {
 // Load quality trends
 async function loadQualityTrends() {
     try {
-        // Mock data for quality trends
-        const trendData = {
-            labels: ['1시간 전', '50분 전', '40분 전', '30분 전', '20분 전', '10분 전', '현재'],
+        // 실제 품질 트렌드 데이터 조회
+        const trendsData = await API.get('/analytics/quality-trends?hours=24').catch(() => null);
+        
+        let trendData;
+        if (trendsData && trendsData.data && trendsData.data.length > 0) {
+            // 실제 데이터가 있는 경우
+            trendData = {
+                labels: trendsData.labels || [],
+                datasets: [
+                    {
+                        label: 'NRR',
+                        data: trendsData.data.map(d => d.nrr || 0),
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'FPR',
+                        data: trendsData.data.map(d => d.fpr || 0),
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'SS',
+                        data: trendsData.data.map(d => d.ss || 0),
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.1
+                    }
+                ]
+            };
+        } else {
+            // 데이터가 없는 경우 빈 차트
+            trendData = {
+                labels: ['데이터 없음'],
+                datasets: [
+                    {
+                        label: 'NRR',
+                        data: [0],
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'FPR',
+                        data: [0],
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'SS',
+                        data: [0],
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.1
+                    }
+                ]
+            };
+        }
+        
+        updateQualityChart(trendData);
+        
+    } catch (error) {
+        console.error('Failed to load quality trends:', error);
+        // 오류 시 빈 차트 표시
+        const emptyData = {
+            labels: ['오류'],
             datasets: [
                 {
                     label: 'NRR',
-                    data: [0.91, 0.92, 0.93, 0.94, 0.93, 0.94, 0.95],
+                    data: [0],
                     borderColor: 'rgb(75, 192, 192)',
                     backgroundColor: 'rgba(75, 192, 192, 0.1)',
                     tension: 0.1
                 },
                 {
-                    label: 'FPR',
-                    data: [0.983, 0.985, 0.987, 0.988, 0.987, 0.989, 0.990],
+                    label: 'FPR', 
+                    data: [0],
                     borderColor: 'rgb(54, 162, 235)',
                     backgroundColor: 'rgba(54, 162, 235, 0.1)',
                     tension: 0.1
                 },
                 {
                     label: 'SS',
-                    data: [0.88, 0.89, 0.90, 0.91, 0.90, 0.92, 0.93],
+                    data: [0],
                     borderColor: 'rgb(255, 99, 132)',
                     backgroundColor: 'rgba(255, 99, 132, 0.1)',
                     tension: 0.1
                 }
             ]
         };
-        
-        updateQualityChart(trendData);
-        
-    } catch (error) {
-        console.error('Failed to load quality trends:', error);
+        updateQualityChart(emptyData);
     }
 }
 

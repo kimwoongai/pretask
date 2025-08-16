@@ -567,9 +567,9 @@ async function showRuleHistory() {
         contentDiv.innerHTML = '';
         modal.show();
         
-        // Get rule versions
-        const data = await API.get('/rules/versions');
-        console.log('Rule history API response:', data);
+        // Get DSL rule versions
+        const data = await API.get('/rules/dsl/versions');
+        console.log('DSL Rule history API response:', data);
         
         // Hide loading
         loadingDiv.style.display = 'none';

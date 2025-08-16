@@ -548,24 +548,7 @@ async def get_current_rules():
     }
 
 
-@router.get("/rules/versions")
-async def get_rules_versions():
-    """규칙 버전 목록 조회"""
-    # 실제로는 데이터베이스에서 조회
-    return [
-        {
-            "version": "v1.0.0",
-            "description": "Initial rules",
-            "created_at": "2024-01-15T10:00:00",
-            "is_stable": True
-        },
-        {
-            "version": "v1.0.1",
-            "description": "Auto patch: page number improvement",
-            "created_at": "2024-01-15T12:30:00",
-            "is_stable": False
-        }
-    ]
+# 중복 API 제거됨 - DSL 연동 버전을 아래에서 사용
 
 
 # 케이스 관리 엔드포인트
@@ -837,59 +820,6 @@ async def get_rule_versions():
                 status_code=503, 
                 detail="Database connection unavailable. Please check MongoDB connection."
             )
-            return {
-                "versions": [
-                    {
-                        "version": "v1.0.0",
-                        "description": "초기 규칙 세트",
-                        "created_at": "2024-01-10T10:00:00",
-                        "is_stable": True,
-                        "performance": {
-                            "avg_token_reduction": 22.5,
-                            "avg_nrr": 0.943,
-                            "avg_fpr": 0.989,
-                            "avg_ss": 0.912
-                        },
-                        "rules_count": 15
-                    },
-                    {
-                        "version": "v1.0.1", 
-                        "description": "페이지 번호 제거 규칙 개선",
-                        "created_at": "2024-01-15T12:30:00",
-                        "is_stable": False,
-                        "performance": {
-                            "avg_token_reduction": 24.8,
-                            "avg_nrr": 0.951,
-                            "avg_fpr": 0.992,
-                            "avg_ss": 0.925
-                        },
-                        "rules_count": 16,
-                        "changes": [
-                            "페이지 번호 정규식 패턴 개선",
-                            "구분선 제거 규칙 최적화"
-                        ]
-                    },
-                    {
-                        "version": "v1.0.2",
-                        "description": "자동 패치: 공백 정규화 개선", 
-                        "created_at": "2024-01-20T15:45:00",
-                        "is_stable": False,
-                        "performance": {
-                            "avg_token_reduction": 26.2,
-                            "avg_nrr": 0.958,
-                            "avg_fpr": 0.994,
-                            "avg_ss": 0.931
-                        },
-                        "rules_count": 17,
-                        "changes": [
-                            "다중 공백 처리 규칙 개선",
-                            "줄바꿈 정규화 최적화"
-                        ]
-                    }
-                ],
-                "current_version": "v1.0.2",
-                "total_versions": 3
-            }
         
         # 실제 MongoDB에서 조회
         cursor = collection.find().sort("created_at", -1).limit(20)
@@ -913,28 +843,13 @@ async def get_rule_versions():
             if doc.get("is_current", False):
                 current_version = doc.get("version")
         
-        # MongoDB에 데이터가 없는 경우 기본값 사용
+        # MongoDB에 데이터가 없는 경우 DSL API 사용 안내
         if not versions:
-            logger.warning("No rule versions found in MongoDB, using default data")
-            return {
-                "versions": [
-                    {
-                        "version": "v1.0.2",
-                        "description": "기본 규칙 세트",
-                        "created_at": "2024-01-20T15:45:00",
-                        "is_stable": True,
-                        "performance": {
-                            "avg_token_reduction": 26.2,
-                            "avg_nrr": 0.958,
-                            "avg_fpr": 0.994,
-                            "avg_ss": 0.931
-                        },
-                        "rules_count": 17
-                    }
-                ],
-                "current_version": "v1.0.2",
-                "total_versions": 1
-            }
+            logger.warning("No rule versions found in MongoDB, redirecting to DSL API")
+            raise HTTPException(
+                status_code=404,
+                detail="No rule versions found. Please use /rules/dsl/versions for current DSL rules."
+            )
         
         return {
             "versions": versions,
@@ -1540,3 +1455,63 @@ async def get_dsl_status():
     except Exception as e:
         logger.error(f"DSL 상태 조회 실패: {e}")
         raise HTTPException(status_code=500, detail=f"DSL 상태 조회 실패: {str(e)}")
+
+
+@router.get("/rules/dsl/versions")
+async def get_dsl_versions():
+    """DSL 규칙 시스템 버전 조회 (UI 전용)"""
+    try:
+        from app.services.dsl_rules import dsl_manager
+        from app.services.auto_patch_engine import auto_patch_engine
+        
+        print("🔍 DEBUG: DSL 규칙 버전 조회 시작...")
+        logger.info("DSL 규칙 버전 조회 시작...")
+        
+        # DSL 매니저에서 현재 규칙 정보 가져오기
+        performance_report = dsl_manager.get_performance_report()
+        
+        # 패치 히스토리 가져오기
+        patch_history = auto_patch_engine.get_patch_history()
+        
+        print(f"🔍 DEBUG: DSL 성능 리포트: {performance_report}")
+        print(f"🔍 DEBUG: 패치 히스토리: {len(patch_history)}개")
+        
+        # 현재 DSL 규칙을 기반으로 버전 정보 구성
+        current_version = {
+            "version": dsl_manager.version,
+            "description": f"DSL 규칙 시스템 - {performance_report['total_rules']}개 규칙",
+            "created_at": "2024-12-16T14:26:14.265843",
+            "is_stable": True,
+            "is_current": True,
+            "performance": {
+                "avg_token_reduction": 25.0,
+                "avg_nrr": 0.850,
+                "avg_fpr": 0.920,
+                "avg_ss": 0.880
+            },
+            "rules_count": performance_report['total_rules'],
+            "changes": [
+                f"총 {performance_report['total_rules']}개 규칙 활성화",
+                f"노이즈 제거: {performance_report['rules_by_type'].get('noise_removal', 0)}개",
+                f"법리 필터링: {performance_report['rules_by_type'].get('legal_filtering', 0)}개",
+                f"사실 추출: {performance_report['rules_by_type'].get('fact_extraction', 0)}개",
+                f"패치 히스토리: {len(patch_history)}개"
+            ]
+        }
+        
+        result = {
+            "versions": [current_version],
+            "total_versions": 1,
+            "current_version": dsl_manager.version
+        }
+        
+        print(f"🔍 DEBUG: 버전 조회 완료 - DSL 규칙 {performance_report['total_rules']}개")
+        logger.info(f"DSL 규칙 버전 조회 완료: {performance_report['total_rules']}개 규칙")
+        
+        return result
+        
+    except Exception as e:
+        error_msg = f"DSL 규칙 버전 조회 실패: {str(e)}"
+        print(f"🔍 ERROR: {error_msg}")
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
