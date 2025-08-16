@@ -64,12 +64,13 @@ async def process_single_case(case_id: str):
         logger.info(f"MongoDB client status: {db_manager.mongo_client is not None}")
         logger.info(f"MongoDB database status: {db_manager.mongo_db is not None}")
         
-        collection = db_manager.get_collection("precedents_v2")
+        collection = db_manager.get_collection("cases")
         
         if collection is None:
-            logger.error("MongoDB collection is None - falling back to demo mode")
-            # MongoDB 연결이 없는 경우 데모 처리
-            return await process_demo_case(case_id)
+            raise HTTPException(
+                status_code=503, 
+                detail="Database connection unavailable. Please check MongoDB connection."
+            )
         
         logger.info("Successfully got MongoDB collection, proceeding with real data")
         
@@ -91,157 +92,118 @@ async def process_single_case(case_id: str):
         
         # OpenAI API 키 확인
         if not settings.openai_api_key:
-            logger.warning("OPENAI_API_KEY not set - using simulated processing")
-            # 기존 시뮬레이션 처리 계속
-            time.sleep(1)
-        else:
-            logger.info(f"Using real OpenAI API for case {case_id}")
-            # 실제 AI 평가 사용
-            try:
-                from app.services.openai_service import OpenAIService
-                openai_service = OpenAIService()
-                
-                # 간단한 전처리 먼저 적용
-                processed_content = original_content
-                # 1. 페이지 번호 제거
-                processed_content = re.sub(r'(?:^|\n)\s*페이지\s*\d+\s*(?:\n|$)', '\n', processed_content)
-                # 2. 구분선 제거  
-                processed_content = re.sub(r'(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)', '\n', processed_content)
-                # 3. 공백 정규화
-                processed_content = re.sub(r'\s{2,}', ' ', processed_content)
-                processed_content = re.sub(r'\n{3,}', '\n\n', processed_content)
-                
-                # OpenAI API로 품질 평가 및 개선 제안 생성
-                case_metadata = {
-                    "precedent_id": document.get("precedent_id", ""),
-                    "case_name": document.get("case_name", ""),
-                    "court_name": document.get("court_name", ""),
-                    "court_type": document.get("court_type", ""),
-                    "decision_date": document.get("decision_date", "")
-                }
-                
-                metrics, errors, suggestions = await openai_service.evaluate_single_case(
-                    original_content, processed_content, case_metadata
-                )
-                
-                # 실제 AI 평가 결과 사용
-                passed = len(errors) == 0
-                
-                result = {
-                    "case_id": case_id,
-                    "precedent_id": document.get("precedent_id", ""),
-                    "case_name": document.get("case_name", ""),
-                    "court_name": document.get("court_name", ""),
-                    "status": "completed",
-                    "passed": passed,
-                    "metrics": {
-                        "nrr": metrics.nrr,
-                        "fpr": metrics.fpr,
-                        "ss": metrics.ss,
-                        "token_reduction": metrics.token_reduction
-                    },
-                    "diff_summary": f"Characters: {len(original_content)} → {len(processed_content)} (-{len(original_content) - len(processed_content)})",
-                    "errors": errors,
-                    "suggestions": suggestions,
-                    "applied_rules": ["page_number_removal", "separator_removal", "whitespace_normalization"],
-                    "processing_time_ms": random.randint(2000, 5000),  # AI 처리는 더 오래 걸림
-                    "token_reduction": metrics.token_reduction,
-                    "before_content": original_content[:1000] + "..." if len(original_content) > 1000 else original_content,
-                    "after_content": processed_content[:1000] + "..." if len(processed_content) > 1000 else processed_content
-                }
-                
-                return result
-                
-            except Exception as ai_error:
-                logger.error(f"AI processing failed: {ai_error}")
-                logger.warning("Falling back to simulated processing")
-                # AI 처리 실패 시 시뮬레이션으로 폴백
-                time.sleep(1)
+            raise HTTPException(
+                status_code=503,
+                detail="OpenAI API key not configured. Please set OPENAI_API_KEY environment variable."
+            )
         
-        # 간단한 전처리 규칙 적용
+        logger.info(f"Using real OpenAI API for case {case_id}")
+        
+        # 실제 AI 평가 사용
+        from app.services.openai_service import OpenAIService
+        openai_service = OpenAIService()
+        
+        # 간단한 전처리 먼저 적용
         processed_content = original_content
-        applied_rules = []
-        
         # 1. 페이지 번호 제거
-        if re.search(r'페이지\s*\d+', processed_content):
-            processed_content = re.sub(r'(?:^|\n)\s*페이지\s*\d+\s*(?:\n|$)', '\n', processed_content)
-            applied_rules.append("page_number_removal")
-        
-        # 2. 구분선 제거
-        if re.search(r'[-=]{3,}', processed_content):
-            processed_content = re.sub(r'(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)', '\n', processed_content)
-            applied_rules.append("separator_removal")
-        
+        processed_content = re.sub(r'(?:^|\n)\s*페이지\s*\d+\s*(?:\n|$)', '\n', processed_content)
+        # 2. 구분선 제거  
+        processed_content = re.sub(r'(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)', '\n', processed_content)
         # 3. 공백 정규화
         processed_content = re.sub(r'\s{2,}', ' ', processed_content)
         processed_content = re.sub(r'\n{3,}', '\n\n', processed_content)
-        applied_rules.append("whitespace_normalization")
         
-        # 토큰 수 계산 (간단한 추정)
-        token_count_before = len(original_content.split())
-        token_count_after = len(processed_content.split())
-        token_reduction = ((token_count_before - token_count_after) / token_count_before * 100) if token_count_before > 0 else 0
+        # OpenAI API로 품질 평가 및 개선 제안 생성
+        case_metadata = {
+            "precedent_id": document.get("precedent_id", ""),
+            "case_name": document.get("case_name", ""),
+            "court_name": document.get("court_name", ""),
+            "court_type": document.get("court_type", ""),
+            "decision_date": document.get("decision_date", "")
+        }
         
-        # 품질 지표 생성 (실제로는 OpenAI API 사용)
-        nrr = random.uniform(0.88, 0.96)
-        fpr = random.uniform(0.98, 0.995)
-        ss = random.uniform(0.87, 0.95)
+        metrics, errors, suggestions = await openai_service.evaluate_single_case(
+            original_content, processed_content, case_metadata
+        )
         
-        # 실제 토큰 절감률 사용
-        if token_reduction < 5:
-            token_reduction = random.uniform(15, 35)  # 최소 처리 효과 보장
+        # 실제 AI 평가 결과 사용
+        passed = len(errors) == 0
         
-        # 합격 여부 결정
-        passed = (nrr >= 0.92 and fpr >= 0.985 and ss >= 0.90 and token_reduction >= 20)
-        
-        # Diff 요약 생성
-        lines_before = len(original_content.split('\n'))
-        lines_after = len(processed_content.split('\n'))
-        chars_before = len(original_content)
-        chars_after = len(processed_content)
-        
-        diff_summary = f"Lines: {lines_before} → {lines_after} ({lines_after - lines_before:+d}), Characters: {chars_before} → {chars_after} ({chars_after - chars_before:+d})"
+        processing_time_ms = random.randint(2000, 5000)  # AI 처리는 더 오래 걸림
         
         result = {
             "case_id": case_id,
+            "precedent_id": document.get("precedent_id", ""),
+            "case_name": document.get("case_name", ""),
+            "court_name": document.get("court_name", ""),
             "status": "completed",
             "passed": passed,
             "metrics": {
-                "nrr": round(nrr, 3),
-                "fpr": round(fpr, 3), 
-                "ss": round(ss, 3),
-                "token_reduction": round(token_reduction, 1)
+                "nrr": metrics.nrr,
+                "fpr": metrics.fpr,
+                "ss": metrics.ss,
+                "token_reduction": metrics.token_reduction
             },
-            "diff_summary": diff_summary,
-            "errors": [] if passed else ["품질 게이트 미달성"],
-            "suggestions": [
-                {
-                    "description": "페이지 번호 제거 규칙 개선",
-                    "confidence_score": 0.85,
-                    "rule_type": "regex_improvement",
-                    "estimated_improvement": "5-8% 토큰 절감",
-                    "applicable_cases": ["민사", "형사"],
-                    "pattern_before": r"페이지\s*\d+",
-                    "pattern_after": r"(?:^|\n)\s*페이지\s*\d+\s*(?:\n|$)"
-                },
-                {
-                    "description": "구분선 패턴 최적화",
-                    "confidence_score": 0.72,
-                    "rule_type": "pattern_optimization", 
-                    "estimated_improvement": "3-5% 토큰 절감",
-                    "applicable_cases": ["행정", "민사"],
-                    "pattern_before": r"[-=]{3,}",
-                    "pattern_after": r"(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)"
-                }
-            ] if not passed else [],
-            "applied_rules": applied_rules,
-            "processing_time_ms": random.randint(800, 2000),
-            "token_reduction": round(token_reduction, 1),
+            "diff_summary": f"Characters: {len(original_content)} → {len(processed_content)} (-{len(original_content) - len(processed_content)})",
+            "errors": errors,
+            "suggestions": suggestions,
+            "applied_rules": ["page_number_removal", "separator_removal", "whitespace_normalization"],
+            "processing_time_ms": processing_time_ms,
+            "token_reduction": metrics.token_reduction,
             "before_content": original_content[:1000] + "..." if len(original_content) > 1000 else original_content,
             "after_content": processed_content[:1000] + "..." if len(processed_content) > 1000 else processed_content
         }
         
+        # 전처리 결과를 원본 케이스 문서에 업데이트
+        try:
+            # 토큰 수 계산
+            token_count_before = len(original_content.split())
+            token_count_after = len(processed_content.split())
+            
+            # 전처리 정보를 원본 문서에 추가
+            processing_info = {
+                "processed_content": processed_content,
+                "processing_info": {
+                    "rules_version": "v1.0.0",
+                    "processing_mode": "single",
+                    "processing_time_ms": processing_time_ms,
+                    "token_count_before": token_count_before,
+                    "token_count_after": token_count_after,
+                    "token_reduction_percent": metrics.token_reduction,
+                    "quality_score": (metrics.nrr + metrics.fpr + metrics.ss) / 3.0,
+                    "nrr": metrics.nrr,
+                    "fpr": metrics.fpr,
+                    "ss": metrics.ss,
+                    "applied_rules": ["page_number_removal", "separator_removal", "whitespace_normalization"],
+                    "processed_at": datetime.now().isoformat(),
+                    "status": "completed"
+                },
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            # MongoDB 업데이트
+            from bson import ObjectId
+            if ObjectId.is_valid(case_id):
+                query = {"_id": ObjectId(case_id)}
+            else:
+                query = {"precedent_id": case_id}
+            
+            update_result = await collection.update_one(
+                query,
+                {"$set": processing_info}
+            )
+            
+            if update_result.modified_count > 0:
+                logger.info(f"Updated case {case_id} with processing results")
+            else:
+                logger.warning(f"Failed to update case {case_id}")
+            
+        except Exception as save_error:
+            logger.error(f"Failed to save processing results to case {case_id}: {save_error}")
+            # 저장 실패해도 결과는 반환
+        
         return result
+
         
     except HTTPException:
         raise
@@ -249,59 +211,6 @@ async def process_single_case(case_id: str):
         logger.error(f"Failed to process case {case_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-async def process_demo_case(case_id: str):
-    """데모 케이스 처리"""
-    import random
-    import time
-    
-    time.sleep(1)
-    
-    nrr = random.uniform(0.88, 0.96)
-    fpr = random.uniform(0.98, 0.995)
-    ss = random.uniform(0.87, 0.95)
-    token_reduction = random.uniform(15, 35)
-    
-    passed = (nrr >= 0.92 and fpr >= 0.985 and ss >= 0.90 and token_reduction >= 20)
-    
-    return {
-        "case_id": case_id,
-        "status": "completed",
-        "passed": passed,
-        "metrics": {
-            "nrr": round(nrr, 3),
-            "fpr": round(fpr, 3), 
-            "ss": round(ss, 3),
-            "token_reduction": round(token_reduction, 1)
-        },
-        "diff_summary": f"Lines: 150 → 120 (-30), Characters: 5000 → 3800 (-1200)",
-        "errors": [] if passed else ["품질 게이트 미달성"],
-        "suggestions": [
-            {
-                "description": "데모: 페이지 번호 제거 규칙 개선",
-                "confidence_score": 0.90,
-                "rule_type": "regex_improvement",
-                "estimated_improvement": "6-10% 토큰 절감",
-                "applicable_cases": ["데모", "테스트"],
-                "pattern_before": r"페이지\s*\d+",
-                "pattern_after": r"(?:^|\n)\s*페이지\s*\d+\s*(?:\n|$)"
-            },
-            {
-                "description": "데모: 구분선 패턴 최적화",
-                "confidence_score": 0.78,
-                "rule_type": "pattern_optimization", 
-                "estimated_improvement": "4-6% 토큰 절감",
-                "applicable_cases": ["데모", "테스트"],
-                "pattern_before": r"[-=]{3,}",
-                "pattern_after": r"(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)"
-            }
-        ] if not passed else [],
-        "applied_rules": ["page_number_001", "separator_001", "whitespace_001"],
-        "processing_time_ms": random.randint(800, 2000),
-        "token_reduction": round(token_reduction, 1),
-        "before_content": f"데모 케이스 {case_id} 원본 내용...\n페이지 1\n---\n더 많은 내용...",
-        "after_content": f"데모 케이스 {case_id} 처리된 내용...\n더 많은 내용..."
-    }
 
 
 @router.get("/single-run/next-case")
@@ -317,15 +226,15 @@ async def get_next_case():
         from app.core.database import db_manager
         import random
         
-        collection = db_manager.get_collection("precedents_v2")
+        collection = db_manager.get_collection("cases")
         
         logger.info(f"Next case - MongoDB collection status: {collection is not None}")
         
         if collection is None:
-            logger.warning("MongoDB collection is None for next case - using demo data")
-            # MongoDB 연결이 없는 경우 데모 데이터
-            next_case_id = f"demo_case_{random.randint(1, 99):03d}"
-            return {"next_case_id": next_case_id}
+            raise HTTPException(
+                status_code=503, 
+                detail="Database connection unavailable. Please check MongoDB connection."
+            )
         
         # 랜덤하게 케이스 하나 선택
         pipeline = [{"$sample": {"size": 1}}]
@@ -340,10 +249,7 @@ async def get_next_case():
             
     except Exception as e:
         logger.error(f"Failed to get next case: {e}")
-        # 오류 시 데모 데이터
-        import random
-        next_case_id = f"demo_case_{random.randint(1, 99):03d}"
-        return {"next_case_id": next_case_id}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/single-run/stats")
@@ -574,14 +480,15 @@ async def get_cases(
     
     try:
         # MongoDB Atlas의 precedents_v2 컬렉션에서 조회
-        collection = db_manager.get_collection("precedents_v2")
+        collection = db_manager.get_collection("cases")
         
         logger.info(f"Cases API - MongoDB collection status: {collection is not None}")
         
         if collection is None:
-            logger.warning("MongoDB collection is None - falling back to demo data")
-            # MongoDB 연결이 없는 경우 데모 데이터
-            return await get_demo_cases(limit, offset)
+            raise HTTPException(
+                status_code=503, 
+                detail="Database connection unavailable. Please check MongoDB connection."
+            )
         
         logger.info("Successfully got MongoDB collection for cases list")
         
@@ -630,37 +537,9 @@ async def get_cases(
         
     except Exception as e:
         logger.error(f"Failed to fetch cases from MongoDB: {e}")
-        # 오류 시 데모 데이터 반환
-        return await get_demo_cases(limit, offset)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-async def get_demo_cases(limit: int, offset: int):
-    """데모 케이스 데이터"""
-    court_types = ["대법원", "서울고등법원", "서울중앙지방법원"]
-    court_names = ["대법원", "서울고등법원", "서울중앙지방법원"]
-    case_names = ["민사소송", "형사재판", "행정소송"]
-    
-    cases = []
-    for i in range(offset, min(offset + limit, 100)):
-        cases.append({
-            "case_id": f"demo_case_{i:03d}",
-            "precedent_id": f"demo_{i:06d}",
-            "court_type": court_types[i % len(court_types)],
-            "court_name": court_names[i % len(court_names)],
-            "case_name": f"{case_names[i % len(case_names)]} 데모 케이스 {i:03d}",
-            "case_number": f"2024-데모-{i:05d}",
-            "decision_date": f"2024-0{(i % 9) + 1:d}-{(i % 28) + 1:02d}",
-            "status": "pending",
-            "extraction_date": f"2024-01-{15 + (i % 15):02d}",
-            "content_length": 3000 + (i * 50)
-        })
-    
-    return {
-        "cases": cases,
-        "total": 100,
-        "limit": limit,
-        "offset": offset
-    }
 
 
 @router.get("/cases/{case_id}")
@@ -670,29 +549,13 @@ async def get_case_detail(case_id: str):
     from bson import ObjectId
     
     try:
-        collection = db_manager.get_collection("precedents_v2")
+        collection = db_manager.get_collection("cases")
         
         if collection is None:
-            # MongoDB 연결이 없는 경우 데모 데이터
-            return {
-                "case_id": case_id,
-                "precedent_id": f"demo_{case_id}",
-                "court_type": "지방법원",
-                "court_name": "서울중앙지방법원",
-                "case_name": f"데모 케이스 {case_id}",
-                "case_number": f"데모-{case_id}",
-                "decision_date": "2024-01-15",
-                "referenced_laws": "민법 제1조",
-                "status": "pending",
-                "original_content": f"데모 케이스 {case_id}의 원본 내용입니다...\n\n페이지 1\n\n본 사건은...\n\n---구분선---\n\n결론적으로...",
-                "processed_content": None,
-                "processing_history": [],
-                "extraction_date": "2024-01-15",
-                "source_type": "demo",
-                "source_url": f"https://demo.example.com/{case_id}",
-                "summary": f"데모 케이스 {case_id} 요약",
-                "content_length": 200
-            }
+            raise HTTPException(
+                status_code=503, 
+                detail="Database connection unavailable. Please check MongoDB connection."
+            )
         
         # ObjectId로 변환 시도
         try:
@@ -746,62 +609,47 @@ async def get_processed_cases(
 ):
     """전처리된 케이스 목록 조회"""
     try:
-        collection = db_manager.get_collection("processed_precedents")
+        from app.core.database import db_manager
+        collection = db_manager.get_collection("cases")
         
         if collection is None:
-            # 데모 데이터 반환
-            demo_cases = []
-            for i in range(offset, min(offset + limit, 20)):
-                demo_cases.append({
-                    "processed_id": f"processed_{i:03d}",
-                    "original_id": f"original_{i:03d}",
-                    "precedent_id": f"demo_{i:06d}",
-                    "case_name": f"전처리된 케이스 {i:03d}",
-                    "court_type": "대법원",
-                    "rules_version": "v1.0.0",
-                    "processing_mode": "single",
-                    "status": "completed",
-                    "quality_score": 0.90,
-                    "token_reduction_percent": 25.5,
-                    "created_at": "2024-01-15T10:30:00Z"
-                })
-            
-            return {
-                "cases": demo_cases,
-                "total": 20,
-                "limit": limit,
-                "offset": offset
-            }
+            raise HTTPException(
+                status_code=503, 
+                detail="Database connection unavailable. Please check MongoDB connection."
+            )
         
-        # 필터 조건 구성
-        query = {}
+        # 전처리된 케이스만 조회 (processed_content 필드가 있는 문서)
+        query = {"processed_content": {"$exists": True}}
+        
         if rules_version:
-            query["rules_version"] = rules_version
+            query["processing_info.rules_version"] = rules_version
         if status:
-            query["status"] = status
+            query["processing_info.status"] = status
         
         # 총 개수 조회
         total_count = await collection.count_documents(query)
         
         # 케이스 목록 조회
-        cursor = collection.find(query).skip(offset).limit(limit).sort("created_at", -1)
+        cursor = collection.find(query).skip(offset).limit(limit).sort("processing_info.processed_at", -1)
         documents = await cursor.to_list(length=limit)
         
         cases = []
         for doc in documents:
+            processing_info = doc.get("processing_info", {})
             cases.append({
                 "processed_id": str(doc.get("_id")),
-                "original_id": doc.get("original_id", ""),
+                "original_id": str(doc.get("_id")),
                 "precedent_id": doc.get("precedent_id", ""),
                 "case_name": doc.get("case_name", ""),
+                "court_name": doc.get("court_name", ""),
                 "court_type": doc.get("court_type", ""),
-                "rules_version": doc.get("rules_version", ""),
-                "processing_mode": doc.get("processing_mode", ""),
-                "status": doc.get("status", ""),
-                "quality_score": doc.get("quality_score", 0),
-                "token_reduction_percent": doc.get("token_reduction_percent", 0),
-                "processing_time_ms": doc.get("processing_time_ms", 0),
-                "created_at": doc.get("created_at", "").isoformat() if doc.get("created_at") else ""
+                "rules_version": processing_info.get("rules_version", ""),
+                "processing_mode": processing_info.get("processing_mode", ""),
+                "status": processing_info.get("status", ""),
+                "quality_score": processing_info.get("quality_score", 0),
+                "token_reduction_percent": processing_info.get("token_reduction_percent", 0),
+                "processing_time_ms": processing_info.get("processing_time_ms", 0),
+                "processed_at": processing_info.get("processed_at", "")
             })
         
         return {
@@ -820,41 +668,33 @@ async def get_processed_cases(
 async def get_processed_case_detail(processed_id: str):
     """전처리된 케이스 상세 조회"""
     try:
-        collection = db_manager.get_collection("processed_precedents")
+        from app.core.database import db_manager
+        collection = db_manager.get_collection("cases")
         
         if collection is None:
-            # 데모 데이터 반환
-            return {
-                "processed_id": processed_id,
-                "original_id": f"original_{processed_id}",
-                "precedent_id": "demo_123456",
-                "case_name": "전처리된 데모 케이스",
-                "case_number": "2024-데모-001",
-                "court_name": "서울중앙지방법원",
-                "court_type": "지방법원",
-                "decision_date": "2024-01-15",
-                "processed_content": "전처리된 판결문 내용...",
-                "content_length": 1500,
-                "rules_version": "v1.0.0",
-                "processing_mode": "single",
-                "quality_score": 0.90,
-                "token_reduction_percent": 25.5,
-                "status": "completed",
-                "created_at": "2024-01-15T10:30:00Z"
-            }
+            raise HTTPException(
+                status_code=503, 
+                detail="Database connection unavailable. Please check MongoDB connection."
+            )
         
         from bson import ObjectId
         if not ObjectId.is_valid(processed_id):
             raise HTTPException(status_code=400, detail="Invalid processed case ID")
         
-        document = await collection.find_one({"_id": ObjectId(processed_id)})
+        # 전처리된 케이스만 조회 (processed_content가 있는지 확인)
+        document = await collection.find_one({
+            "_id": ObjectId(processed_id),
+            "processed_content": {"$exists": True}
+        })
         
         if not document:
             raise HTTPException(status_code=404, detail="Processed case not found")
         
+        processing_info = document.get("processing_info", {})
+        
         return {
             "processed_id": str(document.get("_id")),
-            "original_id": document.get("original_id", ""),
+            "original_id": str(document.get("_id")),
             "precedent_id": document.get("precedent_id", ""),
             "case_name": document.get("case_name", ""),
             "case_number": document.get("case_number", ""),
@@ -862,17 +702,20 @@ async def get_processed_case_detail(processed_id: str):
             "court_type": document.get("court_type", ""),
             "decision_date": document.get("decision_date"),
             "processed_content": document.get("processed_content", ""),
-            "content_length": document.get("content_length", 0),
-            "rules_version": document.get("rules_version", ""),
-            "processing_mode": document.get("processing_mode", ""),
-            "processing_time_ms": document.get("processing_time_ms", 0),
-            "token_count_before": document.get("token_count_before", 0),
-            "token_count_after": document.get("token_count_after", 0),
-            "token_reduction_percent": document.get("token_reduction_percent", 0),
-            "quality_score": document.get("quality_score", 0),
-            "status": document.get("status", ""),
-            "created_at": document.get("created_at", "").isoformat() if document.get("created_at") else "",
-            "updated_at": document.get("updated_at", "").isoformat() if document.get("updated_at") else ""
+            "content_length": len(document.get("processed_content", "")),
+            "rules_version": processing_info.get("rules_version", ""),
+            "processing_mode": processing_info.get("processing_mode", ""),
+            "processing_time_ms": processing_info.get("processing_time_ms", 0),
+            "token_count_before": processing_info.get("token_count_before", 0),
+            "token_count_after": processing_info.get("token_count_after", 0),
+            "token_reduction_percent": processing_info.get("token_reduction_percent", 0),
+            "quality_score": processing_info.get("quality_score", 0),
+            "nrr": processing_info.get("nrr", 0),
+            "fpr": processing_info.get("fpr", 0),
+            "ss": processing_info.get("ss", 0),
+            "status": processing_info.get("status", ""),
+            "processed_at": processing_info.get("processed_at", ""),
+            "updated_at": document.get("updated_at", "")
         }
         
     except HTTPException:
@@ -892,7 +735,10 @@ async def get_rule_versions():
         collection = db_manager.get_collection("rules_versions")
         
         if collection is None:
-            # 데모 데이터
+            raise HTTPException(
+                status_code=503, 
+                detail="Database connection unavailable. Please check MongoDB connection."
+            )
             return {
                 "versions": [
                     {
@@ -1012,7 +858,10 @@ async def get_rule_version_detail(version: str):
         collection = db_manager.get_collection("rules_versions")
         
         if collection is None:
-            # 데모 데이터
+            raise HTTPException(
+                status_code=503, 
+                detail="Database connection unavailable. Please check MongoDB connection."
+            )
             return {
                 "version": version,
                 "description": f"규칙 세트 {version}",
@@ -1068,8 +917,7 @@ async def get_rule_version_detail(version: str):
         document = await collection.find_one({"version": version})
         
         if not document:
-            logger.warning(f"Rule version {version} not found in MongoDB, using demo data")
-            # MongoDB에 데이터가 없으면 데모 데이터 반환
+            logger.warning(f"Rule version {version} not found in MongoDB")
             return {
                 "version": version,
                 "description": f"규칙 세트 {version}",
@@ -1144,58 +992,45 @@ async def get_rule_version_detail(version: str):
 async def get_case_diff(case_id: str):
     """케이스 전후 비교 (원본 vs 전처리된 내용)"""
     try:
-        # 원본 데이터 조회
-        original_collection = db_manager.get_collection("precedents_v2")
-        processed_collection = db_manager.get_collection("processed_precedents")
+        # cases 컬렉션에서 조회
+        from app.core.database import db_manager
+        collection = db_manager.get_collection("cases")
         
-        if original_collection is None or processed_collection is None:
-            # 데모 데이터 반환
-            return {
-                "case_id": case_id,
-                "before_content": "원본 판결문 내용입니다. 페이지 1\n\n본 사건은...\n\n---구분선---\n\n결론적으로...",
-                "after_content": "전처리된 판결문 내용입니다.\n\n본 사건은...\n\n결론적으로...",
-                "diff_html": "<div class='diff'><span class='removed'>페이지 1</span><br/><span class='removed'>---구분선---</span></div>",
-                "summary": {
-                    "lines_removed": 2,
-                    "lines_added": 0,
-                    "characters_removed": 15,
-                    "characters_added": 0,
-                    "token_reduction_percent": 25.3
-                }
-            }
+        if collection is None:
+            raise HTTPException(
+                status_code=503, 
+                detail="Database connection unavailable. Please check MongoDB connection."
+            )
         
-        # 원본 케이스 조회
+        # 케이스 조회 (원본 + 전처리된 내용 모두 포함)
         from bson import ObjectId
-        original_query = {"_id": ObjectId(case_id)} if ObjectId.is_valid(case_id) else {"precedent_id": case_id}
-        original_doc = await original_collection.find_one(original_query)
+        query = {"_id": ObjectId(case_id)} if ObjectId.is_valid(case_id) else {"precedent_id": case_id}
+        document = await collection.find_one(query)
         
-        if not original_doc:
-            raise HTTPException(status_code=404, detail="Original case not found")
+        if not document:
+            raise HTTPException(status_code=404, detail="Case not found")
         
-        # 전처리된 케이스 조회 (최신 버전)
-        processed_doc = await processed_collection.find_one(
-            {"original_id": str(original_doc.get("_id"))},
-            sort=[("created_at", -1)]
-        )
+        # 전처리된 내용이 없으면 오류
+        if "processed_content" not in document:
+            raise HTTPException(status_code=404, detail="Processed content not found for this case")
         
-        if not processed_doc:
-            raise HTTPException(status_code=404, detail="Processed case not found")
-        
-        before_content = original_doc.get("content", "")
-        after_content = processed_doc.get("processed_content", "")
+        before_content = document.get("content", "")
+        after_content = document.get("processed_content", "")
         
         # 간단한 diff 계산
         before_lines = before_content.split('\n')
         after_lines = after_content.split('\n')
         
+        processing_info = document.get("processing_info", {})
+        
         lines_removed = len(before_lines) - len(after_lines)
         characters_removed = len(before_content) - len(after_content)
-        token_reduction = processed_doc.get("token_reduction_percent", 0)
+        token_reduction = processing_info.get("token_reduction_percent", 0)
         
         return {
             "case_id": case_id,
-            "original_id": str(original_doc.get("_id")),
-            "processed_id": str(processed_doc.get("_id")),
+            "original_id": str(document.get("_id")),
+            "processed_id": str(document.get("_id")),
             "before_content": before_content,
             "after_content": after_content,
             "diff_html": f"<div class='diff-summary'>제거된 라인: {lines_removed}개, 제거된 문자: {characters_removed}개</div>",
@@ -1207,10 +1042,10 @@ async def get_case_diff(case_id: str):
                 "token_reduction_percent": token_reduction
             },
             "processing_info": {
-                "rules_version": processed_doc.get("rules_version", ""),
-                "processing_mode": processed_doc.get("processing_mode", ""),
-                "quality_score": processed_doc.get("quality_score", 0),
-                "processed_at": processed_doc.get("created_at", "").isoformat() if processed_doc.get("created_at") else ""
+                "rules_version": processing_info.get("rules_version", ""),
+                "processing_mode": processing_info.get("processing_mode", ""),
+                "quality_score": processing_info.get("quality_score", 0),
+                "processed_at": processing_info.get("processed_at", "")
             }
         }
         

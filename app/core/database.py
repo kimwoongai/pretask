@@ -170,12 +170,11 @@ class ProcessedPrecedentRepository:
     async def save_processed_case(self, processed_data: Dict[str, Any]) -> str:
         """전처리된 케이스 저장"""
         collection = self.db_manager.get_collection(self.collection_name)
-        if collection:
-            result = await collection.insert_one(processed_data)
-            return str(result.inserted_id)
-        else:
-            # 데모 모드: 더미 ID 반환
-            return f"processed_{processed_data.get('original_id', 'unknown')}"
+        if collection is None:
+            raise Exception("Database connection unavailable")
+        
+        result = await collection.insert_one(processed_data)
+        return str(result.inserted_id)
     
     async def get_processed_case(self, original_id: str, rules_version: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """전처리된 케이스 조회"""
