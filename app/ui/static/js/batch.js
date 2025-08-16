@@ -221,6 +221,7 @@ async function saveBatchSettings() {
 // 배치 설정 가져오기
 function getBatchSettings() {
     return {
+        sample_size: parseInt(document.getElementById('sample-size')?.value || 10),
         batch_size: parseInt(document.getElementById('batch-size')?.value || 10),
         max_parallel: parseInt(document.getElementById('max-parallel')?.value || 3),
         retry_limit: parseInt(document.getElementById('retry-limit')?.value || 2),
