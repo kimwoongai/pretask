@@ -428,6 +428,8 @@ async function showCurrentRules() {
         // Get DSL rule status
         const dslStatus = await API.get('/rules/dsl/status');
         console.log('DSL status response:', dslStatus);
+        console.log('Performance report:', dslStatus.dsl_system?.performance_report);
+        console.log('Rules by type:', dslStatus.dsl_system?.performance_report?.rules_by_type);
         
         const currentVersion = dslStatus.dsl_system?.performance_report?.total_rules || 0;
         console.log('Current DSL rules count:', currentVersion);
@@ -440,14 +442,22 @@ async function showCurrentRules() {
         document.getElementById('current-rule-version').textContent = versionText;
         
         // Display DSL rules
-        const performanceReport = dslStatus.dsl_system.performance_report;
-        const patchHistory = dslStatus.auto_patch.recent_patches || [];
+        const performanceReport = dslStatus.dsl_system?.performance_report || {};
+        const patchHistory = dslStatus.auto_patch?.recent_patches || [];
+        
+        // Safe defaults for performance report
+        const safePerformanceReport = {
+            total_rules: performanceReport.total_rules || 0,
+            enabled_rules: performanceReport.enabled_rules || 0,
+            disabled_rules: performanceReport.disabled_rules || 0,
+            rules_by_type: performanceReport.rules_by_type || {}
+        };
         
         contentDiv.innerHTML = `
             <div class="mb-3">
                 <h6><i class="fas fa-tag me-2"></i>DSL 규칙 시스템</h6>
                 <p class="text-muted">MongoDB 기반 동적 규칙 관리</p>
-                <small class="text-muted">저장소: ${dslStatus.dsl_system.storage} (${dslStatus.dsl_system.collection})</small>
+                <small class="text-muted">저장소: ${dslStatus.dsl_system?.storage || 'MongoDB'} (${dslStatus.dsl_system?.collection || 'dsl_rules'})</small>
                 <span class="badge bg-success ms-2">활성</span>
             </div>
             
@@ -456,25 +466,25 @@ async function showCurrentRules() {
                 <div class="row">
                     <div class="col-3">
                         <div class="text-center">
-                            <div class="h5 text-success">${performanceReport.total_rules}</div>
+                            <div class="h5 text-success">${safePerformanceReport.total_rules}</div>
                             <small>총 규칙</small>
                         </div>
                     </div>
                     <div class="col-3">
                         <div class="text-center">
-                            <div class="h5 text-info">${performanceReport.enabled_rules}</div>
+                            <div class="h5 text-info">${safePerformanceReport.enabled_rules}</div>
                             <small>활성 규칙</small>
                         </div>
                     </div>
                     <div class="col-3">
                         <div class="text-center">
-                            <div class="h5 text-warning">${performanceReport.disabled_rules}</div>
+                            <div class="h5 text-warning">${safePerformanceReport.disabled_rules}</div>
                             <small>비활성 규칙</small>
                         </div>
                     </div>
                     <div class="col-3">
                         <div class="text-center">
-                            <div class="h5 text-primary">${dslStatus.auto_patch.patch_count}</div>
+                            <div class="h5 text-primary">${dslStatus.auto_patch?.patch_count || 0}</div>
                             <small>패치 수</small>
                         </div>
                     </div>
@@ -484,12 +494,15 @@ async function showCurrentRules() {
             <div class="mb-3">
                 <h6><i class="fas fa-list me-2"></i>규칙 유형별 분류</h6>
                 <div class="row">
-                    ${Object.entries(performanceReport.rules_by_type).map(([type, count]) => `
-                        <div class="col-4 mb-2">
-                            <span class="badge bg-secondary me-2">${type}</span>
-                            <span class="text-muted">${count}개</span>
-                        </div>
-                    `).join('')}
+                    ${Object.keys(safePerformanceReport.rules_by_type).length > 0 ? 
+                        Object.entries(safePerformanceReport.rules_by_type).map(([type, count]) => `
+                            <div class="col-4 mb-2">
+                                <span class="badge bg-secondary me-2">${type}</span>
+                                <span class="text-muted">${count}개</span>
+                            </div>
+                        `).join('') : 
+                        '<div class="col-12"><p class="text-muted">규칙 유형 정보를 불러오는 중...</p></div>'
+                    }
                 </div>
             </div>
             
