@@ -39,7 +39,7 @@ class AutoPatchEngine:
     def __init__(self):
         self.openai_service = None
         self.patch_history: List[Dict[str, Any]] = []
-        self.performance_threshold = 0.7  # 최소 신뢰도 점수
+        self.performance_threshold = 0.8  # 최소 신뢰도 점수 (높은 품질만 허용)
         
     def _init_openai_service(self):
         """OpenAI 서비스 초기화 (지연 로딩)"""
