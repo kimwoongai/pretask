@@ -30,6 +30,10 @@ services:
         value: 0.90
       - key: MIN_TOKEN_REDUCTION
         value: 20
+      - key: OPENAI_API_KEY
+        sync: false  # 보안상 동기화하지 않음 - Render 대시보드에서 직접 설정
+      - key: OPENAI_MODEL
+        value: gpt-4-turbo-preview
       - key: MONGODB_URL
         sync: false
       - key: REDIS_URL

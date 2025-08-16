@@ -170,7 +170,17 @@ class OpenAIService:
         "parsing_errors": 0
     }},
     "errors": ["오류1", "오류2"],
-    "suggestions": "개선 제안 사항"
+    "suggestions": [
+        {{
+            "description": "개선 제안 1",
+            "confidence_score": 0.85,
+            "rule_type": "regex_improvement",
+            "estimated_improvement": "5-8% 토큰 절감",
+            "applicable_cases": ["민사", "형사"],
+            "pattern_before": "현재 패턴",
+            "pattern_after": "개선된 패턴"
+        }}
+    ]
 }}
 """
     
@@ -221,7 +231,7 @@ class OpenAIService:
             )
             
             errors = result_data.get("errors", [])
-            suggestions = result_data.get("suggestions", "")
+            suggestions = result_data.get("suggestions", [])
             
             return metrics, errors, suggestions
             
@@ -229,7 +239,7 @@ class OpenAIService:
             logger.error(f"Failed to parse evaluation result: {e}")
             # 기본값 반환
             metrics = QualityMetrics(nrr=0.0, fpr=0.0, ss=0.0, token_reduction=0.0)
-            return metrics, ["파싱 오류"], ""
+            return metrics, ["파싱 오류"], []
     
     def _parse_improvement_suggestion(
         self, 
