@@ -502,21 +502,29 @@ class DSLRuleManager:
             # 개별 규칙만 MongoDB에 저장
             save_result = self._save_single_rule_to_mongodb(rule)
             print(f"🔧 DEBUG: MongoDB 개별 규칙 저장 결과: {save_result}")
+            print(f"🔧 DEBUG: save_result 타입: {type(save_result)}, 값: {save_result}")
             
-            if save_result:
+            if save_result is True:
+                print(f"🔧 DEBUG: 저장 성공 확인됨, 자동 리로드 시작...")
                 logger.info(f"규칙 추가: {rule.rule_id}")
                 
                 # 중요: 새 규칙 추가 후 전체 규칙을 다시 로드하여 메모리 동기화
                 print(f"🔧 DEBUG: 새 규칙 추가 완료, 전체 규칙 다시 로드 중...")
                 old_count = len(self.rules)
-                self._reload_all_rules()
-                new_count = len(self.rules)
-                print(f"🔧 DEBUG: 규칙 다시 로드 완료 - {old_count}개 → {new_count}개")
+                print(f"🔧 DEBUG: 리로드 전 규칙 수: {old_count}")
+                
+                try:
+                    self._reload_all_rules()
+                    new_count = len(self.rules)
+                    print(f"🔧 DEBUG: 규칙 다시 로드 완료 - {old_count}개 → {new_count}개")
+                except Exception as reload_error:
+                    print(f"🔧 ERROR: 규칙 리로드 실패: {reload_error}")
                 
                 return True
             else:
-                print(f"🔧 ERROR: MongoDB 저장 실패, 메모리에서 규칙 제거")
-                del self.rules[rule.rule_id]  # 저장 실패시 메모리에서도 제거
+                print(f"🔧 ERROR: MongoDB 저장 실패 (save_result={save_result}), 메모리에서 규칙 제거")
+                if rule.rule_id in self.rules:
+                    del self.rules[rule.rule_id]  # 저장 실패시 메모리에서도 제거
                 return False
         except Exception as e:
             print(f"🔧 ERROR: 규칙 추가 실패 - {rule.rule_id}: {e}")
