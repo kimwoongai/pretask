@@ -126,10 +126,10 @@ async def process_single_case(case_id: str):
         from app.services.dsl_rules import dsl_manager
         from app.services.auto_patch_engine import auto_patch_engine
         
-        # DSL 규칙 적용
+        # DSL 규칙 적용 (모든 규칙 타입 허용)
         processed_content, rule_results = dsl_manager.apply_rules(
             original_content, 
-            rule_types=['noise_removal', 'legal_filtering']
+            rule_types=None  # 모든 규칙 타입 적용
         )
         
         print(f"🔍 DEBUG: DSL 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
