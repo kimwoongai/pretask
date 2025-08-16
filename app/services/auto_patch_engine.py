@@ -39,7 +39,7 @@ class AutoPatchEngine:
     def __init__(self):
         self.openai_service = None
         self.patch_history: List[Dict[str, Any]] = []
-        self.performance_threshold = 0.8  # 최소 신뢰도 점수 (높은 품질만 허용)
+        self.performance_threshold = 0.5  # 최소 신뢰도 점수 (AI 제안 모두 신뢰)
         
     def _init_openai_service(self):
         """OpenAI 서비스 초기화 (지연 로딩)"""
@@ -82,8 +82,10 @@ class AutoPatchEngine:
                 # 신뢰도 기준 필터링
                 if confidence >= self.performance_threshold:
                     patch_suggestions.append(patch)
+                    print(f"🔧 DEBUG: 패치 제안 생성: {patch.suggestion_id} (신뢰도: {confidence})")
                     logger.info(f"패치 제안 생성: {patch.suggestion_id} (신뢰도: {confidence})")
                 else:
+                    print(f"🔧 DEBUG: 패치 제안 제외: 신뢰도 부족 ({confidence} < {self.performance_threshold})")
                     logger.debug(f"패치 제안 제외: 신뢰도 부족 ({confidence} < {self.performance_threshold})")
                     
             except Exception as e:
@@ -319,7 +321,7 @@ class AutoPatchEngine:
             return False
     
     def auto_apply_patches(self, patches: List[PatchSuggestion], 
-                          auto_apply_threshold: float = 0.7) -> Dict[str, Any]:
+                          auto_apply_threshold: float = 0.5) -> Dict[str, Any]:
         """자동 패치 적용 (신뢰도 기준)"""
         results = {
             'total_patches': len(patches),
