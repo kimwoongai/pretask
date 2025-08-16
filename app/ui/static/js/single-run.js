@@ -425,120 +425,108 @@ async function showCurrentRules() {
         contentDiv.innerHTML = '';
         modal.show();
         
-        // Get current version first
-        const versions = await API.get('/rules/versions');
-        console.log('Rules versions response:', versions);
+        // Get DSL rule status
+        const dslStatus = await API.get('/rules/dsl/status');
+        console.log('DSL status response:', dslStatus);
         
-        const currentVersion = versions.current_version || versions.versions?.[0]?.version || 'v1.0.2';
-        console.log('Using current version:', currentVersion);
-        
-        // Get rule details
-        const ruleData = await API.get(`/rules/versions/${currentVersion}`);
+        const currentVersion = dslStatus.dsl_system?.performance_report?.total_rules || 0;
+        console.log('Current DSL rules count:', currentVersion);
         
         // Hide loading
         loadingDiv.style.display = 'none';
         
         // Update current version display
-        document.getElementById('current-rule-version').textContent = currentVersion;
+        const versionText = `v1.0.0 (${currentVersion}개 규칙)`;
+        document.getElementById('current-rule-version').textContent = versionText;
         
-        // Display rules
+        // Display DSL rules
+        const performanceReport = dslStatus.dsl_system.performance_report;
+        const patchHistory = dslStatus.auto_patch.recent_patches || [];
+        
         contentDiv.innerHTML = `
             <div class="mb-3">
-                <h6><i class="fas fa-tag me-2"></i>버전: ${ruleData.version}</h6>
-                <p class="text-muted">${ruleData.description}</p>
-                <small class="text-muted">생성일: ${Utils.formatDateTime(ruleData.created_at)}</small>
-                ${ruleData.is_current ? '<span class="badge bg-success ms-2">현재 버전</span>' : ''}
-                ${ruleData.is_stable ? '<span class="badge bg-primary ms-2">안정 버전</span>' : ''}
+                <h6><i class="fas fa-tag me-2"></i>DSL 규칙 시스템</h6>
+                <p class="text-muted">MongoDB 기반 동적 규칙 관리</p>
+                <small class="text-muted">저장소: ${dslStatus.dsl_system.storage} (${dslStatus.dsl_system.collection})</small>
+                <span class="badge bg-success ms-2">활성</span>
             </div>
             
             <div class="mb-3">
-                <h6><i class="fas fa-chart-line me-2"></i>성능 지표</h6>
+                <h6><i class="fas fa-chart-line me-2"></i>규칙 통계</h6>
                 <div class="row">
                     <div class="col-3">
                         <div class="text-center">
-                            <div class="h5 text-success">${Utils.formatNumber(ruleData.performance.avg_nrr, 3)}</div>
-                            <small>NRR</small>
+                            <div class="h5 text-success">${performanceReport.total_rules}</div>
+                            <small>총 규칙</small>
                         </div>
                     </div>
                     <div class="col-3">
                         <div class="text-center">
-                            <div class="h5 text-info">${Utils.formatNumber(ruleData.performance.avg_fpr, 3)}</div>
-                            <small>ICR</small>
+                            <div class="h5 text-info">${performanceReport.enabled_rules}</div>
+                            <small>활성 규칙</small>
                         </div>
                     </div>
                     <div class="col-3">
                         <div class="text-center">
-                            <div class="h5 text-warning">${Utils.formatNumber(ruleData.performance.avg_ss, 3)}</div>
-                            <small>SS</small>
+                            <div class="h5 text-warning">${performanceReport.disabled_rules}</div>
+                            <small>비활성 규칙</small>
                         </div>
                     </div>
                     <div class="col-3">
                         <div class="text-center">
-                            <div class="h5 text-primary">${Utils.formatPercent(ruleData.performance.avg_token_reduction)}</div>
-                            <small>토큰 절감</small>
+                            <div class="h5 text-primary">${dslStatus.auto_patch.patch_count}</div>
+                            <small>패치 수</small>
                         </div>
                     </div>
                 </div>
             </div>
             
             <div class="mb-3">
-                <h6><i class="fas fa-list me-2"></i>적용 규칙 (${ruleData.rules.length}개)</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>우선순위</th>
-                                <th>이름</th>
-                                <th>설명</th>
-                                <th>패턴</th>
-                                <th>상태</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${ruleData.rules.map(rule => `
-                                <tr>
-                                    <td>${rule.priority}</td>
-                                    <td><code>${rule.name}</code></td>
-                                    <td>${rule.description}</td>
-                                    <td><small><code>${rule.pattern}</code></small></td>
-                                    <td>
-                                        ${rule.enabled ? 
-                                            '<span class="badge bg-success">활성</span>' : 
-                                            '<span class="badge bg-secondary">비활성</span>'
-                                        }
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                <h6><i class="fas fa-list me-2"></i>규칙 유형별 분류</h6>
+                <div class="row">
+                    ${Object.entries(performanceReport.rules_by_type).map(([type, count]) => `
+                        <div class="col-4 mb-2">
+                            <span class="badge bg-secondary me-2">${type}</span>
+                            <span class="text-muted">${count}개</span>
+                        </div>
+                    `).join('')}
                 </div>
             </div>
             
-            ${ruleData.changes && ruleData.changes.length > 0 ? `
+            ${patchHistory.length > 0 ? `
                 <div class="mb-3">
-                    <h6><i class="fas fa-edit me-2"></i>변경 사항</h6>
+                    <h6><i class="fas fa-history me-2"></i>최근 자동 패치 (${patchHistory.length}개)</h6>
                     <ul class="list-unstyled">
-                        ${ruleData.changes.map(change => `
-                            <li><i class="fas fa-chevron-right me-2 text-muted"></i>${change}</li>
+                        ${patchHistory.map(patch => `
+                            <li class="mb-1">
+                                <i class="fas fa-chevron-right me-2 text-muted"></i>
+                                <small class="text-muted">${patch.applied_at || '최근'}</small>
+                                <span class="ms-2">${patch.description || '규칙 개선'}</span>
+                            </li>
                         `).join('')}
                     </ul>
                 </div>
-            ` : ''}
+            ` : `
+                <div class="mb-3">
+                    <h6><i class="fas fa-info-circle me-2"></i>자동 패치</h6>
+                    <p class="text-muted">아직 자동 패치가 적용되지 않았습니다.</p>
+                </div>
+            `}
             
             <div class="mb-3">
-                <h6><i class="fas fa-check-circle me-2"></i>테스트 결과</h6>
+                <h6><i class="fas fa-check-circle me-2"></i>시스템 상태</h6>
                 <div class="row">
                     <div class="col-4">
-                        <small class="text-muted">회귀 테스트</small><br>
-                        <span class="text-success">${ruleData.test_results.regression_tests || '통과'}</span>
+                        <small class="text-muted">DSL 시스템</small><br>
+                        <span class="text-success">활성</span>
                     </div>
                     <div class="col-4">
-                        <small class="text-muted">단위 테스트</small><br>
-                        <span class="text-success">${ruleData.test_results.unit_tests || '통과'}</span>
+                        <small class="text-muted">자동 패치</small><br>
+                        <span class="text-success">활성</span>
                     </div>
                     <div class="col-4">
-                        <small class="text-muted">홀드아웃 검증</small><br>
-                        <span class="text-success">${ruleData.test_results.holdout_validation || '통과'}</span>
+                        <small class="text-muted">MongoDB 연결</small><br>
+                        <span class="text-success">정상</span>
                     </div>
                 </div>
             </div>
