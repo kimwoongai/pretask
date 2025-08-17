@@ -286,10 +286,35 @@ class BatchProcessor:
                 if suggestions_json:
                     try:
                         import json
-                        suggestions_data = json.loads(suggestions_json)
-                        suggestions = suggestions_data.get("suggestions", [])
                         
-                        for suggestion in suggestions:
+                        # suggestions_json의 타입 확인
+                        print(f"🔍 DEBUG: 케이스 {case_id} 제안 데이터 타입: {type(suggestions_json)}")
+                        
+                        # 이미 파싱된 객체인지 확인
+                        if isinstance(suggestions_json, str):
+                            suggestions_data = json.loads(suggestions_json)
+                        elif isinstance(suggestions_json, (dict, list)):
+                            suggestions_data = suggestions_json
+                        else:
+                            print(f"⚠️ DEBUG: 케이스 {case_id} 알 수 없는 제안 데이터 타입: {type(suggestions_json)}")
+                            continue
+                        
+                        # suggestions 필드 추출
+                        if isinstance(suggestions_data, dict):
+                            suggestions = suggestions_data.get("suggestions", [])
+                        elif isinstance(suggestions_data, list):
+                            suggestions = suggestions_data
+                        else:
+                            print(f"⚠️ DEBUG: 케이스 {case_id} 제안 데이터가 dict나 list가 아님: {type(suggestions_data)}")
+                            continue
+                        
+                        print(f"🔍 DEBUG: 케이스 {case_id} 제안 개수: {len(suggestions)}")
+                        
+                        for i, suggestion in enumerate(suggestions):
+                            if not isinstance(suggestion, dict):
+                                print(f"⚠️ DEBUG: 케이스 {case_id} 제안 {i}가 dict가 아님: {type(suggestion)}")
+                                continue
+                                
                             # PatchSuggestion 객체로 변환
                             from app.services.auto_patch_engine import PatchSuggestion
                             patch = PatchSuggestion(
@@ -303,9 +328,11 @@ class BatchProcessor:
                                 applicable_cases=suggestion.get("applicable_cases", [])
                             )
                             all_suggestions.append(patch)
+                            print(f"✅ DEBUG: 케이스 {case_id} 제안 {i} 추가됨: {patch.description}")
                             
                     except Exception as e:
                         print(f"⚠️ DEBUG: 제안 파싱 실패 - {case_id}: {e}")
+                        print(f"⚠️ DEBUG: 제안 데이터 내용: {str(suggestions_json)[:200]}...")
             
             print(f"📈 DEBUG: 총 {len(all_suggestions)}개 제안 수집됨")
             
