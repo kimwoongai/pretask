@@ -1629,3 +1629,50 @@ async def save_batch_settings(settings: dict):
     except Exception as e:
         logger.error(f"배치 설정 저장 실패: {e}")
         raise HTTPException(status_code=500, detail=f"배치 설정 저장 실패: {str(e)}")
+
+
+@router.post("/rules/update-default-rules")
+async def update_default_rules():
+    """기본 규칙을 AI 제안 규칙들로 업데이트"""
+    try:
+        from app.services.dsl_rules import dsl_manager
+        
+        # 현재 규칙 백업
+        backup_count = len(dsl_manager.rules)
+        
+        # 모든 규칙 삭제
+        dsl_manager.rules.clear()
+        
+        # 새로운 개선된 기본 규칙 생성
+        dsl_manager._create_default_rules()
+        
+        # MongoDB에 저장
+        save_success = dsl_manager.save_rules()
+        
+        if save_success:
+            return {
+                "status": "success",
+                "message": "기본 규칙이 AI 제안 규칙들로 업데이트되었습니다",
+                "backup_rules_count": backup_count,
+                "new_rules_count": len(dsl_manager.rules),
+                "rules_preview": [
+                    {
+                        "rule_id": rule.rule_id,
+                        "rule_type": rule.rule_type,
+                        "description": rule.description,
+                        "priority": rule.priority
+                    }
+                    for rule in list(dsl_manager.rules.values())[:5]  # 처음 5개만 미리보기
+                ],
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "failed", 
+                "message": "MongoDB 저장 실패",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"기본 규칙 업데이트 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"기본 규칙 업데이트 실패: {str(e)}")
