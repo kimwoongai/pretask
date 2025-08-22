@@ -4,7 +4,7 @@
 import asyncio
 import uuid
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import logging
 from app.core.database import db_manager
 from app.services.openai_service import OpenAIService
