@@ -1,0 +1,72 @@
+[
+  {
+    "rule_id": "ai_legal_filtering_68501f647bceb320096f5ed9_43_fixed",
+    "rule_type": "legal_filtering",
+    "pattern": "\\d+누\\d+ 판결 참조|대통령령 제\\d+호|지방세법 제\\d+조",
+    "replacement": "",
+    "priority": 80,
+    "enabled": true,
+    "description": "AI 제안: 구체적 판례 인용 및 법조문만 제거",
+    "performance_score": 0.87,
+    "created_at": "2025-08-22T22:26:08.956510",
+    "updated_at": "2025-01-20T18:00:00.000000",
+    "usage_count": 0,
+    "success_rate": 0
+  },
+  {
+    "rule_id": "ai_legal_filtering_68501f647bceb320096f5ed9_44_fixed",
+    "rule_type": "legal_filtering", 
+    "pattern": "소송대리인 변호사.*?외 \\d+인$|상고비용은.*?부담으로 한다\\.$",
+    "replacement": "",
+    "priority": 80,
+    "enabled": true,
+    "description": "AI 제안: 대리인 정보와 비용 부담 문구만 제거",
+    "performance_score": 0.85,
+    "created_at": "2025-08-22T22:26:14.344696",
+    "updated_at": "2025-01-20T18:00:00.000000",
+    "usage_count": 0,
+    "success_rate": 0
+  },
+  {
+    "rule_id": "ai_noise_removal_685084de5d59a31f382d353c_47_fixed",
+    "rule_type": "noise_removal",
+    "pattern": "^【변론종결】$|^【주 문】$|^【제1심판결】.*?선고$",
+    "replacement": "",
+    "priority": 80,
+    "enabled": true,
+    "description": "AI 제안: 절차적 제목만 제거 (내용 보존)",
+    "performance_score": 0.8,
+    "created_at": "2025-08-22T22:26:20.494679",
+    "updated_at": "2025-01-20T18:00:00.000000",
+    "usage_count": 0,
+    "success_rate": 0
+  },
+  {
+    "rule_id": "ai_redundancy_removal_685084de5d59a31f382d353c_48_fixed",
+    "rule_type": "redundancy_removal",
+    "pattern": "\\(소송대리인 변호사.*?\\)",
+    "replacement": "",
+    "priority": 80,
+    "enabled": true,
+    "description": "AI 제안: 소송대리인 괄호 정보만 제거",
+    "performance_score": 0.87,
+    "created_at": "2025-08-22T22:26:27.255816",
+    "updated_at": "2025-01-20T18:00:00.000000",
+    "usage_count": 0,
+    "success_rate": 0
+  },
+  {
+    "rule_id": "ai_generic_685084de5d59a31f382d353c_49_DISABLED",
+    "rule_type": "noise_removal",
+    "pattern": "^【요지】$|^【상세내용】$|^【붙임】$",
+    "replacement": "",
+    "priority": 40,
+    "enabled": false,
+    "description": "AI 일반: 특정 구조적 제목만 제거 (비활성화)",
+    "performance_score": 0.82,
+    "created_at": "2025-08-22T22:26:32.673899",
+    "updated_at": "2025-01-20T18:00:00.000000",
+    "usage_count": 0,
+    "success_rate": 0
+  }
+]

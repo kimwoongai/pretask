@@ -102,11 +102,15 @@ class BatchProcessor:
             
             print(f"✅ DEBUG: 배치 처리 완료 - {job.processed_cases}개 처리됨")
             
-            # 3. 결과 분석 및 패치 적용
+            # 3. 배치 처리 결과를 MongoDB에 저장
+            await self._update_job_status(job, "saving", "처리 결과를 MongoDB에 저장 중...")
+            await self._save_batch_results_to_mongodb(sample_cases, batch_results, job)
+            
+            # 4. 결과 분석 및 패치 적용
             await self._update_job_status(job, "analyzing", "결과 분석 및 패치 적용 중...")
             await self._analyze_and_apply_patches(job, batch_results)
             
-            # 4. 완료 처리
+            # 5. 완료 처리
             job.status = "completed"
             job.completed_at = datetime.now()
             job.success_rate = job.processed_cases / job.total_cases if job.total_cases > 0 else 0
@@ -124,6 +128,101 @@ class BatchProcessor:
             if job.job_id in self.active_jobs:
                 del self.active_jobs[job.job_id]
             self.job_history.append(job)
+    
+    async def _save_batch_results_to_mongodb(
+        self, 
+        sample_cases: List[Dict[str, Any]], 
+        batch_results: List[Tuple[str, Any, List[str], str]], 
+        job: BatchJob
+    ):
+        """배치 처리 결과를 MongoDB cases 컬렉션에 저장"""
+        try:
+            print(f"💾 DEBUG: 배치 결과 MongoDB 저장 시작 - {len(batch_results)}개 케이스")
+            
+            cases_collection = db_manager.get_collection("cases")
+            if cases_collection is None:
+                logger.error("cases 컬렉션을 찾을 수 없습니다")
+                return
+            
+            saved_count = 0
+            
+            for case_id, metrics, errors, suggestions in batch_results:
+                try:
+                    # 원본 케이스 데이터 찾기
+                    original_case = next(
+                        (case for case in sample_cases if str(case.get("_id", "")) == case_id or case.get("precedent_id", "") == case_id), 
+                        None
+                    )
+                    
+                    if not original_case:
+                        logger.warning(f"원본 케이스를 찾을 수 없습니다: {case_id}")
+                        continue
+                    
+                    # 전처리 수행 (배치 결과에는 전처리된 내용이 없으므로 다시 수행)
+                    original_content = original_case.get("content", "")
+                    processing_result = await dsl_manager.process_content(original_content)
+                    processed_content = processing_result["processed_content"]
+                    applied_rules = [rule["rule_id"] for rule in processing_result["applied_rules"]]
+                    
+                    # 토큰 수 계산
+                    token_count_before = len(original_content.split())
+                    token_count_after = len(processed_content.split())
+                    token_reduction = ((token_count_before - token_count_after) / token_count_before * 100) if token_count_before > 0 else 0
+                    
+                    # cases 컬렉션에 저장할 데이터 구성
+                    case_data = {
+                        "original_id": str(original_case["_id"]),
+                        "precedent_id": original_case.get("precedent_id", ""),
+                        "case_name": original_case.get("case_name", ""),
+                        "case_number": original_case.get("case_number", ""),
+                        "court_name": original_case.get("court_name", ""),
+                        "court_type": original_case.get("court_type", ""),
+                        "decision_date": original_case.get("decision_date", ""),
+                        "original_content": original_content,
+                        "processed_content": processed_content,
+                        "rules_version": "v1.0.0",
+                        "processing_mode": "batch",
+                        "batch_job_id": job.job_id,
+                        "processing_time_ms": 0,  # 배치에서는 개별 처리 시간 측정 안함
+                        "token_count_before": token_count_before,
+                        "token_count_after": token_count_after,
+                        "token_reduction_percent": token_reduction,
+                        "quality_score": (metrics.nrr + metrics.fpr + metrics.ss) / 3.0 if hasattr(metrics, 'nrr') else 0.7,
+                        "nrr": metrics.nrr if hasattr(metrics, 'nrr') else 0.7,
+                        "fpr": metrics.fpr if hasattr(metrics, 'fpr') else 0.8,
+                        "ss": metrics.ss if hasattr(metrics, 'ss') else 0.75,
+                        "applied_rules": applied_rules,
+                        "errors": errors,
+                        "suggestions": suggestions if isinstance(suggestions, list) else [],
+                        "status": "completed",
+                        "created_at": datetime.now().isoformat(),
+                        "updated_at": datetime.now().isoformat()
+                    }
+                    
+                    # MongoDB에 저장 (upsert)
+                    update_result = await cases_collection.update_one(
+                        {"original_id": str(original_case["_id"])},
+                        {"$set": case_data},
+                        upsert=True
+                    )
+                    
+                    if update_result.upserted_id or update_result.modified_count > 0:
+                        saved_count += 1
+                        if saved_count % 10 == 0:  # 10개마다 로그
+                            print(f"💾 DEBUG: {saved_count}개 케이스 저장 완료...")
+                    
+                except Exception as case_error:
+                    logger.error(f"케이스 {case_id} 저장 실패: {case_error}")
+                    job.errors.append(f"케이스 {case_id} 저장 실패: {str(case_error)}")
+                    continue
+            
+            print(f"✅ DEBUG: 배치 결과 저장 완료 - {saved_count}개 케이스 저장됨")
+            logger.info(f"배치 결과 MongoDB 저장 완료: {saved_count}개 케이스")
+            
+        except Exception as e:
+            logger.error(f"배치 결과 MongoDB 저장 실패: {e}")
+            job.errors.append(f"MongoDB 저장 실패: {str(e)}")
+            print(f"❌ DEBUG: 배치 결과 저장 실패: {e}")
             
     async def _select_sample_cases(self, settings: Dict[str, Any]) -> List[Dict[str, Any]]:
         """샘플 케이스 선정"""

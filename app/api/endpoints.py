@@ -173,11 +173,11 @@ async def process_single_case(case_id: str):
                     original_content
                 )
                 
-                # 자동 패치 적용 (신뢰도 0.5 이상 자동 적용 - AI 완전 신뢰)
+                # 자동 패치 적용 (신뢰도 0.9 이상만 자동 적용 - 보수적 접근)
                 if patch_suggestions:
                     patch_results = auto_patch_engine.auto_apply_patches(
                         patch_suggestions, 
-                        auto_apply_threshold=0.5
+                        auto_apply_threshold=0.9
                     )
                     print(f"🔧 DEBUG: 패치 적용 결과 - 자동 적용: {patch_results['auto_applied']}개, "
                           f"검토 필요: {patch_results['manual_review']}개")
