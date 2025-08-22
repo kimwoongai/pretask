@@ -1,0 +1,8 @@
+[33mcommit a1f0c8a501e5aa8eed61c942518797ea29a961fd[m
+Author: Kim Woong <woong0322@gmail.com>
+Date:   Sun Aug 17 09:24:31 2025 +0900
+
+    Improve batch result suggestion parsing - handle various data types
+
+ app/services/batch_processor.py | 33 [32m++++++++++++++++++++++++++++++[m[31m---[m
+ 1 file changed, 30 insertions(+), 3 deletions(-)

@@ -203,66 +203,124 @@ class DSLRuleManager:
             return False
     
     def _create_default_rules(self):
-        """기본 규칙 생성"""
+        """기본 규칙 생성 (AI 제안 규칙들 통합)"""
         default_rules = [
-            # 노이즈 제거 규칙
+            # 최고 우선순위: UI 요소 제거
             DSLRule(
-                rule_id="ui_noise_removal",
+                rule_id="ui_elements_removal",
                 rule_type="noise_removal",
-                pattern=r'판례상세\s*저장\s*인쇄\s*보관\s*전자팩스\s*공유\s*화면내\s*검색\s*조회\s*닫기',
+                pattern=r'판례상세 저장 인쇄 보관 전자팩스 공유 화면내 검색 조회 닫기|PDF로 보기|Tip[0-9]+\.',
                 replacement="",
                 priority=100,
-                description="UI 메뉴 노이즈 제거"
-            ),
-            DSLRule(
-                rule_id="case_info_noise_removal",
-                rule_type="noise_removal",
-                pattern=r'재판경과\s*.*?\s*참조판례\s*\d+\s*건\s*인용판례\s*\d+\s*건',
-                replacement="",
-                priority=95,
-                description="재판경과 메타데이터 제거"
-            ),
-            DSLRule(
-                rule_id="similar_docs_removal",
-                rule_type="noise_removal",
-                pattern=r'유사문서\s*\d+\s*건.*?태그\s*클라우드.*?닫기',
-                replacement="",
-                priority=90,
-                description="유사문서 섹션 제거"
-            ),
-            DSLRule(
-                rule_id="tags_removal",
-                rule_type="noise_removal",
-                pattern=r'#\w+(?:\s*#\w+)*',
-                replacement="",
-                priority=85,
-                description="태그 제거"
+                description="UI 요소와 시스템 메뉴 제거"
             ),
             
-            # 법리 필터링 규칙
+            # 법적 판단 및 결론 제거 (legal_filtering)
             DSLRule(
-                rule_id="judgment_expressions_filter",
+                rule_id="legal_judgment_removal",
+                rule_type="legal_filtering", 
+                pattern=r'따라서.*?판단한다|그러므로.*?인정된다|결론적으로.*?본다',
+                replacement="",
+                priority=97,
+                description="법적 판단 결론 제거"
+            ),
+            DSLRule(
+                rule_id="legal_sections_removal",
                 rule_type="legal_filtering",
-                pattern=r'타당하다|정당하다|부당하다|볼\s*수\s*없다|보아야\s*한다|인정된다|판단된다|라\s*할\s*것',
+                pattern=r'【판결요지】.*?【판례내용】|【주 문】.*?【이 유】|【판시사항】.*?【판결요지】',
+                replacement="",
+                priority=99,
+                description="법적 판단 섹션 제거"
+            ),
+            DSLRule(
+                rule_id="legal_reasoning_removal",
+                rule_type="legal_filtering",
+                pattern=r'법리상.*?해석|법적으로.*?판단|이 법원은.*?본다',
+                replacement="",
+                priority=93,
+                description="법리 해석 내용 제거"
+            ),
+            
+            # 절차적 설명 제거 (noise_removal)
+            DSLRule(
+                rule_id="procedural_info_removal",
+                rule_type="noise_removal",
+                pattern=r'변론 종결|심리 종결|증거 조사|판결 선고|변론.*?진행|심리.*?완료',
+                replacement="",
+                priority=95,
+                description="절차적 설명 제거"
+            ),
+            DSLRule(
+                rule_id="court_process_removal", 
+                rule_type="noise_removal",
+                pattern=r'【원심판결】.*?선고|상고를 기각한다.*?부담으로 한다|【변론종결】.*?【청구취지】',
+                replacement="",
+                priority=92,
+                description="법원 절차 설명 제거"
+            ),
+            DSLRule(
+                rule_id="case_parties_removal",
+                rule_type="noise_removal", 
+                pattern=r'【원고, 상고인】.*?【피고, 피상고인】|【원심판결】.*?선고|【원 고】 【피 고】.*',
+                replacement="",
+                priority=87,
+                description="당사자 표시 정보 제거"
+            ),
+            
+            # 중복 표시 정보 제거 (redundancy_removal)
+            DSLRule(
+                rule_id="case_metadata_removal",
+                rule_type="redundancy_removal",
+                pattern=r'재판경과.*?\d{4}\.\d{2}\.\d{2}\.|참조판례 \d+ 건|인용판례 \d+ 건',
+                replacement="",
+                priority=89,
+                description="재판 경과 및 참조 정보 제거"
+            ),
+            DSLRule(
+                rule_id="court_info_removal",
+                rule_type="redundancy_removal",
+                pattern=r'제1심.*?제2심.*?선고|법원 유형:.*?사건 유형:|【연관판결】.*?2심',
+                replacement="",
+                priority=85,
+                description="법원 정보 중복 제거"
+            ),
+            
+            # 구조적 노이즈 제거
+            DSLRule(
+                rule_id="structural_noise_removal",
+                rule_type="noise_removal",
+                pattern=r'【판례내용】|【청구취지】|【판시사항】|\[\d+\]|페이지 [0-9]+|-----',
+                replacement="",
+                priority=84,
+                description="구조적 노이즈 제거"
+            ),
+            DSLRule(
+                rule_id="case_number_removal",
+                rule_type="noise_removal", 
+                pattern=r'판례 [0-9]+',
+                replacement="",
+                priority=77,
+                description="판례 번호 제거"
+            ),
+            
+            # 참조 URL 및 안내 문구 제거 (새로 추가)
+            DSLRule(
+                rule_id="reference_url_removal",
+                rule_type="noise_removal",
+                pattern=r'본 판례는 법제처에서 제공하는 자료로, 웹 페이지에서 직접 확인하시는 것이 좋습니다\. 참조 URL: http://www\.law.*',
+                replacement="",
+                priority=95,
+                description="참조 URL 및 안내 문구 제거"
+            ),
+            
+            # 기타 노이즈 제거
+            DSLRule(
+                rule_id="misc_noise_removal",
+                rule_type="noise_removal",
+                pattern=r'변론 전체의 취지|인정근거 다툼 없는 사실|페이지 번호|구분선|법원명.*?반복|사건번호.*?반복',
                 replacement="",
                 priority=80,
-                description="판단 표현 필터링"
-            ),
-            DSLRule(
-                rule_id="legal_reasoning_filter",
-                rule_type="legal_filtering",
-                pattern=r'관련\s*법리|법리|대법원.*선고.*판결|판시',
-                replacement="",
-                priority=75,
-                description="법리 관련 문장 필터링"
-            ),
-            DSLRule(
-                rule_id="conclusion_filter",
-                rule_type="legal_filtering",
-                pattern=r'^주\s*문|^이유|^판단|청구.*(?:기각|인용|각하)',
-                replacement="",
-                priority=70,
-                description="결론 섹션 필터링"
+                description="기타 노이즈 제거"
             )
         ]
         
@@ -678,3 +736,4 @@ class DSLRuleManager:
 
 # 전역 인스턴스
 dsl_manager = DSLRuleManager()
+
