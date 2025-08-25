@@ -1,306 +1,295 @@
 {
-    "_id": "68a58cea3c9a110dddf6c28f",
-    "version": "1.2.2",
-    "updated_at": "2025-08-25T00:00:00.000000",
-    "rules": [
-      {
-        "rule_id": "block_portal_pdf_tips",
-        "rule_type": "noise_removal",
-        "pattern": "(?ms)상세내용\\s*PDF로 보기[\\s\\S]*?닫기",
-        "replacement": "",
-        "priority": 130,
-        "enabled": true,
-        "description": "포털 안내/팁/인쇄·PDF 안내 전체 블록 제거"
-      },
-      {
-        "rule_id": "block_similar_docs",
-        "rule_type": "noise_removal",
-        "pattern": "(?ms)유사문서\\s*\\d+\\s*건[\\s\\S]*?(?=태그 클라우드|검색하기|\\Z)",
-        "replacement": "",
-        "priority": 129,
-        "enabled": true,
-        "description": "유사문서 목록 블록 제거"
-      },
-      {
-        "rule_id": "block_tag_cloud",
-        "rule_type": "noise_removal",
-        "pattern": "(?ms)태그 클라우드[\\s\\S]*?$",
-        "replacement": "",
-        "priority": 128,
-        "enabled": true,
-        "description": "태그 클라우드 및 검색 UI 제거"
-      },
-      {
-        "rule_id": "heading_one_line_noise",
-        "rule_type": "noise_removal",
-        "pattern": "(?m)^(?:판례상세 저장 인쇄 보관 전자팩스 공유 화면내 검색 조회 닫기|PDF로 보기|상세내용|판결내용|요지|닫기)\\s*$",
-        "replacement": "",
-        "priority": 127,
-        "enabled": true,
-        "description": "단독 행의 포털/구조 제목 제거"
-      },
-      {
-        "rule_id": "block_youji_summary",
-        "rule_type": "legal_filtering",
-        "pattern": "(?ms)^요지\\s*[\\r\\n]+[\\s\\S]*?(?=^\\s*(?:판결내용|상세내용|사건|주\\s*문|이\\s*유|\\d+\\.\\s|\\[|【)|\\Z)",
-        "replacement": "",
-        "priority": 126,
-        "enabled": true,
-        "description": "‘요지’ 섹션 전체 제거(의견·평가 포함)"
-      },
-      {
-        "rule_id": "inline_summary_sentence",
-        "rule_type": "legal_filtering",
-        "pattern": "(?m)^.*?(?:타당하(?:다|다고)|보(?:인|아)다|어렵(?:다|다고)|적절하(?:다|다고)|합리적(?:이다|이라고)).*?\\.$",
-        "replacement": "",
-        "priority": 125,
-        "enabled": true,
-        "description": "잔여 요약 문장 중 평가·판단 어휘 포함 문장 제거(라인 단위 안전 제거)"
-      },
-      {
-        "rule_id": "remove_attached_judgment_line",
-        "rule_type": "noise_removal",
-        "pattern": "(?m)^판결내용은\\s*붙임과\\s*같습니다\\.$",
-        "replacement": "",
-        "priority": 124,
-        "enabled": true,
-        "description": "‘판결내용은 붙임과 같습니다.’ 문구 제거"
-      },
-      {
-        "rule_id": "block_disposition_jumun",
-        "rule_type": "legal_filtering",
-        "pattern": "(?ms)^\\s*주\\s*문\\s*[\\r\\n]+[\\s\\S]*?(?=^\\s*(?:이\\s*유|판시사항|\\d+\\.\\s|사건|요지|상세내용)|\\Z)",
-        "replacement": "",
-        "priority": 123,
-        "enabled": true,
-        "description": "‘주문’(재판 결론) 전체 제거"
-      },
-      {
-        "rule_id": "block_pleading_cheongu",
-        "rule_type": "legal_filtering",
-        "pattern": "(?ms)^\\s*청\\s*구\\s*취\\s*지\\s*[\\r\\n]+[\\s\\S]*?(?=^\\s*(?:이\\s*유|\\d+\\.\\s|주\\s*문)|\\Z)",
-        "replacement": "",
-        "priority": 122,
-        "enabled": true,
-        "description": "‘청구취지’(당사자 요구) 전체 제거"
-      },
-      {
-        "rule_id": "block_claims_of_parties",
-        "rule_type": "legal_filtering",
-        "pattern": "(?ms)^\\s*\\d+\\.\\s*(?:원고|피고)[^\\n]{0,40}주장[^\\n]*[\\r\\n]+[\\s\\S]*?(?=^\\s*\\d+\\.\\s|^\\s*[\\[【]|\\Z)",
-        "replacement": "",
-        "priority": 121,
-        "enabled": true,
-        "description": "‘원고/피고의 주장(요지)’ 섹션 전체 제거"
-      },
-      {
-        "rule_id": "block_law_sections",
-        "rule_type": "legal_filtering",
-        "pattern": "(?ms)^\\s*\\d+\\.\\s*(?:관계\\s*법령|관련\\s*법리|관련\\s*법령)[^\\n]*[\\r\\n]+[\\s\\S]*?(?=^\\s*\\d+\\.\\s|^\\s*[\\[【]|\\Z)",
-        "replacement": "",
-        "priority": 120,
-        "enabled": true,
-        "description": "관계 법령/법리 인용 섹션 전체 제거"
-      },
-      {
-        "rule_id": "block_pandan_and_conclusion",
-        "rule_type": "legal_filtering",
-        "pattern": "(?ms)^\\s*\\d+\\.\\s*(?:판단|결론)[^\\n]*[\\r\\n]+[\\s\\S]*?(?=^\\s*\\d+\\.\\s|^\\s*[\\[【]|\\Z)",
-        "replacement": "",
-        "priority": 119,
-        "enabled": true,
-        "description": "재판부 판단/결론 섹션 전체 제거(의견·평가)"
-      },
-      {
-        "rule_id": "inline_reasoning_cue_lines",
-        "rule_type": "legal_filtering",
-        "pattern": "(?m)^(?:요컨대|결국|따라서|종합하면|이상의 사정에 비추어|이러한 사정을 종합하면|그렇다면|살피건대|나아가|전술한 바와 같이|위와 같은 사정들에 의하면).*?\\.$",
-        "replacement": "",
-        "priority": 118,
-        "enabled": true,
-        "description": "잔여 문장 중 판단 연결사로 시작하는 문장 제거(의견성)"
-      },
-      {
-        "rule_id": "parenthetical_citations",
-        "rule_type": "legal_filtering",
-        "pattern": "\\(대법원.*?판결.*?참조\\)",
-        "replacement": "",
-        "priority": 117,
-        "enabled": true,
-        "description": "괄호 속 판례 인용 제거(기존 규칙 보강)"
-      },
-      {
-        "rule_id": "ui_elements_removal",
-        "rule_type": "noise_removal",
-        "pattern": "판례상세 저장 인쇄 보관 전자팩스 공유 화면내 검색 조회 닫기|PDF로 보기|Tip[0-9]+\\.",
-        "replacement": "",
-        "priority": 116,
-        "enabled": true,
-        "description": "UI 요소와 시스템 메뉴 제거(기존)"
-      },
-      {
-        "rule_id": "reference_url_removal",
-        "rule_type": "noise_removal",
-        "pattern": "본 판례는 법제처에서 제공하는 자료로, 웹 페이지에서 직접 확인하시는 것이 좋습니다\\. 참조 URL: http://www\\.law.*",
-        "replacement": "",
-        "priority": 115,
-        "enabled": true,
-        "description": "참조 URL 및 안내 문구 제거(기존)"
-      },
-      {
-        "rule_id": "case_metadata_removal",
-        "rule_type": "redundancy_removal",
-        "pattern": "재판경과.*?\\d{4}\\.\\d{2}\\.\\d{2}\\.|참조판례 \\d+ 건|인용판례 \\d+ 건",
-        "replacement": "",
-        "priority": 114,
-        "enabled": true,
-        "description": "재판 경과·참조/인용판례 카운트 제거(상단 포털 메타)"
-      },
-      {
-        "rule_id": "facts_heading_title_only_strip",
-        "rule_type": "noise_removal",
-        "pattern": "(?m)^(?:[IVXivx]+\\.|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\\.|\\d+\\.|[가-힣]\\.|\\([가-힣0-9]+\\))?\\s*(?:【\\s*)?(?:사실\\s*관계|기초\\s*사실|인정\\s*사실|당사자\\s*및\\s*사실\\s*관계)(?:\\s*】)?\\s*(?::|：|-)?\\s*$",
-        "replacement": "",
-        "priority": 113,
-        "enabled": true,
-        "description": "‘사실관계/기초사실/인정사실/당사자 및 사실관계’ 제목행만 제거하고 본문(사실)은 보존"
-      },
-  
-      {
-        "rule_id": "remove_injeonggeungo_tag",
-        "rule_type": "noise_removal",
-        "pattern": "\\[인정근거\\]\\s*",
-        "replacement": "",
-        "priority": 113,
-        "enabled": true,
-        "description": "‘[인정근거]’ 표식만 제거(본문 보존)"
-      },
-      {
-        "rule_id": "misc_noise_removal_refined",
-        "rule_type": "noise_removal",
-        "pattern": "(?m)변론 전체의 취지|페이지 번호|구분선",
-        "replacement": "",
-        "priority": 112,
-        "enabled": true,
-        "description": "기타 잡음 문구 정리(‘다툼 없는 사실’ 표지는 보존)"
-      },
-      {
-        "rule_id": "legal_sections_heading_strip",
-        "rule_type": "legal_filtering",
-        "pattern": "(?m)^(?:【판결요지】|【판례내용】|【주 문】|【이 유】|【판시사항】)\\s*$",
-        "replacement": "",
-        "priority": 111,
-        "enabled": true,
-        "description": "브래킷 표제 제거(내용 보존)"
-      },
-      {
-        "rule_id": "procedure_titles_strip",
-        "rule_type": "noise_removal",
-        "pattern": "(?m)^(?:변론\\s*종결|심리\\s*종결|증거\\s*조사|판결\\s*선고)\\s*$",
-        "replacement": "",
-        "priority": 110,
-        "enabled": true,
-        "description": "순수 제목행만 제거(날짜가 뒤따르는 본문 라인은 보존됨)"
-      },
-      {
-        "rule_id": "legal_judgment_removal_fixed",
-        "rule_type": "legal_filtering",
-        "pattern": "그렇다면.*?각하하기로 하여 주문과 같이 판결한다|따라서.*?더 나아가 살피지 아니한다",
-        "replacement": "",
-        "priority": 109,
-        "enabled": true,
-        "description": "결론성 구절 제거(기존)"
-      },
-      {
-        "rule_id": "court_process_removal_fixed",
-        "rule_type": "noise_removal",
-        "pattern": "상고를 기각한다.*?부담으로 한다\\.",
-        "replacement": "",
-        "priority": 108,
-        "enabled": true,
-        "description": "상고 기각·비용 문구 제거(기존)"
-      },
-      {
-        "rule_id": "litigation_cost_removal",
-        "rule_type": "noise_removal",
-        "pattern": "소송비용은.*?부담한다\\.",
-        "replacement": "",
-        "priority": 107,
-        "enabled": true,
-        "description": "소송비용 부담 문구 제거(기존)"
-      },
-      {
-        "rule_id": "ai_legal_filtering_specific_refs",
-        "rule_type": "legal_filtering",
-        "pattern": "\\d+누\\d+\\s*판결\\s*참조|대통령령 제\\d+호|지방세법 제\\d+조",
-        "replacement": "",
-        "priority": 106,
-        "enabled": true,
-        "description": "구체 판례번호/법조문 인용 제거(기존)"
-      },
-      {
-        "rule_id": "ai_legal_filtering_costs",
-        "rule_type": "legal_filtering",
-        "pattern": "상고비용은.*?부담으로 한다\\.",
-        "replacement": "",
-        "priority": 105,
-        "enabled": true,
-        "description": "상고비용 문구 제거(기존)"
-      },
-      {
-        "rule_id": "ai_litigation_representative_removal",
-        "rule_type": "redundancy_removal",
-        "pattern": "\\(소송대리인 변호사.*?\\)",
-        "replacement": "",
-        "priority": 104,
-        "enabled": true,
-        "description": "소송대리인 괄호 정보 제거(기존)"
-      },
-      {
-        "rule_id": "ai_generic_68503cb47bceb320096fa47d_32",
-        "rule_type": "noise_removal",
-        "pattern": "법원명.*?반복|사건번호.*?반복",
-        "replacement": "",
-        "priority": 103,
-        "enabled": false,
-        "description": "모호하여 과제 대상 정보까지 삭제 위험 — 비활성화"
-      },
-      {
-        "rule_id": "ai_generic_68503cb47bceb320096fa47d_33",
-        "rule_type": "noise_removal",
-        "pattern": "페이지 번호.*?표시|구분선.*?표시",
-        "replacement": "",
-        "priority": 102,
-        "enabled": false,
-        "description": "중복/과삭제 가능 — 다른 명확 규칙으로 대체"
-      },
-      {
-        "rule_id": "structural_noise_removal_fixed",
-        "rule_type": "noise_removal",
-        "pattern": "(?m)^(?:【판례내용】|【청구취지】|【판시사항】)$|\\[\\d+\\]|페이지\\s+[0-9]+|-----",
-        "replacement": "",
-        "priority": 101,
-        "enabled": true,
-        "description": "구조적 노이즈 제목/표식 제거(기존)"
-      },
-      {
-        "rule_id": "collapse_spaces",
-        "rule_type": "post_normalize",
-        "pattern": "[ \\t]{2,}",
-        "replacement": " ",
-        "priority": 2,
-        "enabled": true,
-        "description": "연속 공백 1칸으로 축약"
-      },
-      {
-        "rule_id": "collapse_blanklines",
-        "rule_type": "post_normalize",
-        "pattern": "(?:\\r?\\n){3,}",
-        "replacement": "\\n\\n",
-        "priority": 1,
-        "enabled": true,
-        "description": "연속 빈 줄 2줄로 축약"
-      }
-    ]
-  }
-  
+  "_id": "68a58cea3c9a110dddf6c28f",
+  "version": "1.2.3",
+  "updated_at": "2025-08-26T00:30:00.000000",
+  "rules": [
+    {
+      "rule_id": "block_portal_pdf_tips",
+      "rule_type": "noise_removal",
+      "pattern": "(?ms)상세내용\\s*PDF로 보기[\\s\\S]*?닫기",
+      "replacement": "",
+      "priority": 130,
+      "enabled": true,
+      "description": "포털 안내/팁/인쇄·PDF 안내 전체 블록 제거"
+    },
+    {
+      "rule_id": "block_similar_docs",
+      "rule_type": "noise_removal",
+      "pattern": "(?ms)유사문서\\s*\\d+\\s*건[\\s\\S]*?(?=태그 클라우드|검색하기|\\Z)",
+      "replacement": "",
+      "priority": 129,
+      "enabled": true,
+      "description": "유사문서 목록 블록 제거"
+    },
+    {
+      "rule_id": "block_tag_cloud",
+      "rule_type": "noise_removal",
+      "pattern": "(?ms)태그 클라우드[\\s\\S]*?$",
+      "replacement": "",
+      "priority": 128,
+      "enabled": true,
+      "description": "태그 클라우드 및 검색 UI 제거"
+    },
+    {
+      "rule_id": "heading_one_line_noise",
+      "rule_type": "noise_removal",
+      "pattern": "(?m)^(?:판례상세 저장 인쇄 보관 전자팩스 공유 화면내 검색 조회 닫기|상세내용|판결내용|요지|닫기)\\s*$",
+      "replacement": "",
+      "priority": 127,
+      "enabled": true,
+      "description": "단독 행의 포털/구조 제목 제거 (PDF 관련은 다른 규칙이 담당)"
+    },
+    {
+      "rule_id": "block_youji_summary",
+      "rule_type": "legal_filtering",
+      "pattern": "(?ms)^요지\\s*[\\r\\n]+[\\s\\S]*?(?=^\\s*(?:판결내용|상세내용|사건|주\\s*문|이\\s*유|\\d+\\.\\s|\\[|【)|\\Z)",
+      "replacement": "",
+      "priority": 126,
+      "enabled": true,
+      "description": "‘요지’ 섹션 전체 제거(의견·평가 포함)"
+    },
+    {
+      "rule_id": "inline_summary_sentence",
+      "rule_type": "legal_filtering",
+      "pattern": "(?m)^.*?(?:타당하(?:다|다고)|보(?:인|아)다|어렵(?:다|다고)|적절하(?:다|다고)|합리적(?:이다|이라고)).*?\\.$",
+      "replacement": "",
+      "priority": 125,
+      "enabled": true,
+      "description": "잔여 요약 문장 중 평가·판단 어휘 포함 문장 제거(라인 단위)"
+    },
+    {
+      "rule_id": "remove_attached_judgment_line",
+      "rule_type": "noise_removal",
+      "pattern": "(?m)^판결내용은\\s*붙임과\\s*같습니다\\.$",
+      "replacement": "",
+      "priority": 124,
+      "enabled": true,
+      "description": "‘판결내용은 붙임과 같습니다.’ 문구 제거"
+    },
+    {
+      "rule_id": "block_disposition_jumun",
+      "rule_type": "legal_filtering",
+      "pattern": "(?ms)^\\s*주\\s*문\\s*[\\r\\n]+[\\s\\S]*?(?=^\\s*(?:이\\s*유|판시사항|\\d+\\.\\s|사건|요지|상세내용)|\\Z)",
+      "replacement": "",
+      "priority": 123,
+      "enabled": true,
+      "description": "‘주문’(재판 결론) 전체 제거"
+    },
+    {
+      "rule_id": "block_pleading_cheongu",
+      "rule_type": "legal_filtering",
+      "pattern": "(?ms)^\\s*청\\s*구\\s*취\\s*지\\s*[\\r\\n]+[\\s\\S]*?(?=^\\s*(?:이\\s*유|\\d+\\.\\s|주\\s*문)|\\Z)",
+      "replacement": "",
+      "priority": 122,
+      "enabled": true,
+      "description": "‘청구취지’(당사자 요구) 전체 제거"
+    },
+    {
+      "rule_id": "block_claims_of_parties",
+      "rule_type": "legal_filtering",
+      "pattern": "(?ms)^\\s*\\d+\\.\\s*(?:원고|피고)[^\\n]{0,40}주장[^\\n]*[\\r\\n]+[\\s\\S]*?(?=^\\s*\\d+\\.\\s|^\\s*[\\[【]|\\Z)",
+      "replacement": "",
+      "priority": 121,
+      "enabled": true,
+      "description": "‘원고/피고의 주장(요지)’ 섹션 전체 제거"
+    },
+    {
+      "rule_id": "block_law_sections",
+      "rule_type": "legal_filtering",
+      "pattern": "(?ms)^\\s*\\d+\\.\\s*(?:관계\\s*법령|관련\\s*법리|관련\\s*법령)[^\\n]*[\\r\\n]+[\\s\\S]*?(?=^\\s*\\d+\\.\\s|^\\s*[\\[【]|\\Z)",
+      "replacement": "",
+      "priority": 120,
+      "enabled": true,
+      "description": "관계 법령/법리 인용 섹션 전체 제거"
+    },
+    {
+      "rule_id": "block_pandan_and_conclusion",
+      "rule_type": "legal_filtering",
+      "pattern": "(?ms)^\\s*\\d+\\.\\s*(?:판단|결론)[^\\n]*[\\r\\n]+[\\s\\S]*?(?=^\\s*\\d+\\.\\s|^\\s*[\\[【]|\\Z)",
+      "replacement": "",
+      "priority": 119,
+      "enabled": true,
+      "description": "재판부 판단/결론 섹션 전체 제거(의견·평가)"
+    },
+    {
+      "rule_id": "inline_reasoning_cue_lines",
+      "rule_type": "legal_filtering",
+      "pattern": "(?m)^(?:요컨대|결국|따라서|종합하면|이상의 사정에 비추어|이러한 사정을 종합하면|그렇다면|살피건대|나아가|전술한 바와 같이|위와 같은 사정들에 의하면).*?\\.$",
+      "replacement": "",
+      "priority": 118,
+      "enabled": true,
+      "description": "판단 연결사로 시작하는 문장 제거(의견성)"
+    },
+    {
+      "rule_id": "parenthetical_citations",
+      "rule_type": "legal_filtering",
+      "pattern": "\\(대법원.*?판결.*?참조\\)",
+      "replacement": "",
+      "priority": 117,
+      "enabled": true,
+      "description": "괄호 속 판례 인용 제거"
+    },
+    {
+      "rule_id": "reference_url_law_go",
+      "rule_type": "noise_removal",
+      "pattern": "참조 URL: http[s]?://www\\.law\\.go\\.kr/LSW/precInfoP\\.do\\?precSeq=\\d+.*",
+      "replacement": "",
+      "priority": 116,
+      "enabled": true,
+      "description": "law.go.kr 참조 URL 제거(precSeq 뒤 파라미터 전체 허용)"
+    },
+    {
+      "rule_id": "law_go_notice_text",
+      "rule_type": "noise_removal",
+      "pattern": "본 판례는 법제처.*자료.*좋습니다\\.",
+      "replacement": "",
+      "priority": 115,
+      "enabled": true,
+      "description": "법제처 제공 안내 문구(변형 포함) 제거"
+    },
+    {
+      "rule_id": "facts_heading_title_only_strip",
+      "rule_type": "noise_removal",
+      "pattern": "(?m)^(?:[IVXivx]+\\.|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\\.|\\d+\\.|[가-힣]\\.|\\([가-힣0-9]+\\))?\\s*(?:【\\s*)?(?:사실\\s*관계|기초\\s*사실|인정\\s*사실|당사자\\s*및\\s*사실\\s*관계)(?:\\s*】)?\\s*(?::|：|-)?\\s*$",
+      "replacement": "",
+      "priority": 114,
+      "enabled": true,
+      "description": "‘사실관계/기초사실/인정사실/당사자 및 사실관계’ 제목행만 제거(본문 보존)"
+    },
+    {
+      "rule_id": "remove_injeonggeungo_tag",
+      "rule_type": "noise_removal",
+      "pattern": "\\[인정근거\\]\\s*",
+      "replacement": "",
+      "priority": 113,
+      "enabled": true,
+      "description": "‘[인정근거]’ 표식만 제거(본문 보존)"
+    },
+    {
+      "rule_id": "misc_noise_removal_refined",
+      "rule_type": "noise_removal",
+      "pattern": "(?m)변론 전체의 취지",
+      "replacement": "",
+      "priority": 112,
+      "enabled": true,
+      "description": "기타 잡음 문구 정리(페이지/구분선은 구조 규칙이 담당)"
+    },
+    {
+      "rule_id": "legal_sections_heading_strip",
+      "rule_type": "legal_filtering",
+      "pattern": "(?m)^(?:【판결요지】|【판례내용】|【주 문】|【이 유】|【판시사항】)\\s*$",
+      "replacement": "",
+      "priority": 111,
+      "enabled": true,
+      "description": "브래킷 표제 제거(내용 보존)"
+    },
+    {
+      "rule_id": "procedure_titles_strip",
+      "rule_type": "noise_removal",
+      "pattern": "(?m)^(?:변론\\s*종결|심리\\s*종결|증거\\s*조사|판결\\s*선고)\\s*$",
+      "replacement": "",
+      "priority": 110,
+      "enabled": true,
+      "description": "순수 제목행만 제거(날짜가 뒤따르는 본문 라인은 보존)"
+    },
+    {
+      "rule_id": "legal_judgment_removal_fixed",
+      "rule_type": "legal_filtering",
+      "pattern": "그렇다면.*?각하하기로 하여 주문과 같이 판결한다|따라서.*?더 나아가 살피지 아니한다",
+      "replacement": "",
+      "priority": 109,
+      "enabled": true,
+      "description": "결론성 구절 제거"
+    },
+    {
+      "rule_id": "court_process_removal_fixed",
+      "rule_type": "noise_removal",
+      "pattern": "상고를 기각한다.*?부담으로 한다\\.",
+      "replacement": "",
+      "priority": 108,
+      "enabled": true,
+      "description": "상고 기각·비용 문구 제거"
+    },
+    {
+      "rule_id": "litigation_cost_removal",
+      "rule_type": "noise_removal",
+      "pattern": "소송비용은.*?부담한다\\.",
+      "replacement": "",
+      "priority": 107,
+      "enabled": true,
+      "description": "소송비용 부담 문구 제거(일반형)"
+    },
+    {
+      "rule_id": "litigation_costs_appeal",
+      "rule_type": "noise_removal",
+      "pattern": "항소비용은.*?부담한다\\.",
+      "replacement": "",
+      "priority": 106,
+      "enabled": true,
+      "description": "항소비용 부담 문구 제거(원고/피고/각자 포함)"
+    },
+    {
+      "rule_id": "ai_legal_filtering_specific_refs",
+      "rule_type": "legal_filtering",
+      "pattern": "\\d+누\\d+\\s*판결\\s*참조|대통령령 제\\d+호|지방세법 제\\d+조",
+      "replacement": "",
+      "priority": 105,
+      "enabled": true,
+      "description": "구체 판례번호/법조문 인용 제거"
+    },
+    {
+      "rule_id": "ai_legal_filtering_costs",
+      "rule_type": "legal_filtering",
+      "pattern": "상고비용은.*?부담으로 한다\\.",
+      "replacement": "",
+      "priority": 104,
+      "enabled": true,
+      "description": "상고비용 문구 제거"
+    },
+    {
+      "rule_id": "ai_litigation_representative_removal",
+      "rule_type": "redundancy_removal",
+      "pattern": "\\(소송대리인 변호사.*?\\)",
+      "replacement": "",
+      "priority": 103,
+      "enabled": true,
+      "description": "소송대리인 괄호 정보 제거"
+    },
+    {
+      "rule_id": "structural_noise_removal_fixed",
+      "rule_type": "noise_removal",
+      "pattern": "(?m)^(?:【판례내용】|【청구취지】|【판시사항】)$|\\[\\d+\\]|페이지\\s+[0-9]+|-----",
+      "replacement": "",
+      "priority": 102,
+      "enabled": true,
+      "description": "구조적 노이즈 제목/표식 제거"
+    },
+    {
+      "rule_id": "pdf_button_text",
+      "rule_type": "noise_removal",
+      "pattern": "(?m)^PDF로 보기.*$",
+      "replacement": "",
+      "priority": 3,
+      "enabled": true,
+      "description": "PDF 보기 관련 단일행 메뉴 제거(확장 표현 포함)"
+    },
+    {
+      "rule_id": "collapse_spaces",
+      "rule_type": "post_normalize",
+      "pattern": "[ \\t]{2,}",
+      "replacement": " ",
+      "priority": 2,
+      "enabled": true,
+      "description": "연속 공백 1칸으로 축약"
+    },
+    {
+      "rule_id": "collapse_blanklines",
+      "rule_type": "post_normalize",
+      "pattern": "(?:\\r?\\n){3,}",
+      "replacement": "\\n\\n",
+      "priority": 1,
+      "enabled": true,
+      "description": "연속 빈 줄 2줄로 축약"
+    }
+  ]
+}

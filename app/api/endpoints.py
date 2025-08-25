@@ -127,6 +127,11 @@ async def process_single_case(case_id: str):
         from app.services.auto_patch_engine import auto_patch_engine
         
         # DSL 규칙 적용 (모든 규칙 타입 허용)
+        print(f"🔧 DEBUG: 로드된 DSL 규칙 수: {len(dsl_manager.rules)}")
+        enabled_rules = [rule for rule in dsl_manager.rules.values() if rule.enabled]
+        print(f"🔧 DEBUG: 활성화된 규칙 수: {len(enabled_rules)}")
+        print(f"🔧 DEBUG: 활성화된 규칙 목록: {[rule.rule_id for rule in enabled_rules[:5]]}")  # 처음 5개만
+        
         processed_content, rule_results = dsl_manager.apply_rules(
             original_content, 
             rule_types=None  # 모든 규칙 타입 적용

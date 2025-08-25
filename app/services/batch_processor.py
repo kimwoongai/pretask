@@ -212,10 +212,10 @@ class BatchProcessor:
                     
                     # 전처리 수행
                     try:
-                        processing_result = await dsl_manager.process_content(original_content)
-                        processed_content = processing_result["processed_content"]
+                        processed_content, processing_result = dsl_manager.apply_rules(original_content)
                         applied_rules = [rule["rule_id"] for rule in processing_result["applied_rules"]]
                         print(f"✅ DEBUG: 케이스 {case_id} 전처리 완료 - 처리 후 길이: {len(processed_content)}자")
+                        print(f"📊 DEBUG: 적용된 규칙 수: {len(applied_rules)}, 규칙: {applied_rules}")
                     except Exception as process_error:
                         error_msg = f"케이스 {case_id} 전처리 실패: {process_error}"
                         logger.error(error_msg)
