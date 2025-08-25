@@ -174,7 +174,9 @@ class DSLRuleManager:
             
             if documents:
                 data = documents[0]
+                print(f"🔧 DEBUG: MongoDB 문서에서 발견된 버전: {data.get('version', 'None')}")
                 self.version = data.get('version', '1.0.0')
+                print(f"🔧 DEBUG: DSLRuleManager 버전 설정됨: {self.version}")
                 rules_data = data.get('rules', [])
                 
                 self.rules.clear()

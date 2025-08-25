@@ -14,6 +14,28 @@ from app.services.full_processor import FullProcessor
 from app.services.monitoring import metrics_collector, alert_manager
 from app.services.safety_gates import safety_gate_manager
 
+
+async def get_mongodb_rules_version() -> str:
+    """MongoDB에서 직접 최신 규칙 버전 조회"""
+    try:
+        from app.core.database import db_manager
+        
+        collection = db_manager.get_collection("dsl_rules")
+        if collection is None:
+            return "unknown"
+        
+        # 최신 문서 조회
+        documents = await collection.find().sort("updated_at", -1).limit(1).to_list(1)
+        
+        if documents:
+            return documents[0].get('version', 'unknown')
+        else:
+            return "no_rules"
+            
+    except Exception as e:
+        logger.error(f"MongoDB 규칙 버전 조회 실패: {e}")
+        return "error"
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -126,6 +148,7 @@ async def process_single_case(case_id: str):
         from app.services.dsl_rules import dsl_manager
         from app.services.auto_patch_engine import auto_patch_engine
         
+
         # DSL 규칙 적용 (모든 규칙 타입 허용)
         print(f"🔧 DEBUG: 로드된 DSL 규칙 수: {len(dsl_manager.rules)}")
         enabled_rules = [rule for rule in dsl_manager.rules.values() if rule.enabled]
@@ -254,7 +277,7 @@ async def process_single_case(case_id: str):
                 "decision_date": document.get("decision_date", ""),
                 "original_content": original_content,
                 "processed_content": processed_content,
-                "rules_version": "v1.0.0",
+                "rules_version": await get_mongodb_rules_version(),
                 "processing_mode": "single",
                 "processing_time_ms": processing_time_ms,
                 "token_count_before": token_count_before,
@@ -369,12 +392,13 @@ async def get_next_case():
 @router.get("/single-run/stats")
 async def get_single_run_stats():
     """단건 처리 통계"""
+    from app.services.dsl_rules import dsl_manager
     import random
     consecutive_passes = random.randint(0, 25)
     return {
         "consecutive_passes": consecutive_passes,
         "ready_for_batch_mode": consecutive_passes >= 20,
-        "current_rules_version": "v1.0.0",
+        "current_rules_version": await get_mongodb_rules_version(),
         "mode": "단건 점검 모드 (Shakedown)"
     }
 
