@@ -143,6 +143,30 @@ class OpenAIService:
         
         return suggestions
     
+    def _get_applied_rules_info(self, metadata: Dict[str, Any]) -> str:
+        """현재 적용된 규칙들의 정보를 가져와서 문자열로 반환"""
+        try:
+            from app.services.dsl_rules import dsl_manager
+            
+            # 현재 활성화된 규칙들 가져오기
+            active_rules = dsl_manager.get_sorted_rules()
+            
+            if not active_rules:
+                return "- 현재 적용된 규칙 없음"
+            
+            rules_info = []
+            for rule in active_rules[:15]:  # 상위 15개만 표시 (프롬프트 길이 제한)
+                rules_info.append(f"- {rule.description}: `{rule.pattern[:100]}{'...' if len(rule.pattern) > 100 else ''}`")
+            
+            if len(active_rules) > 15:
+                rules_info.append(f"- ... 및 {len(active_rules) - 15}개 추가 규칙")
+            
+            return "\n".join(rules_info)
+            
+        except Exception as e:
+            logger.warning(f"기존 규칙 정보 로드 실패: {e}")
+            return "- 기존 규칙 정보 로드 실패"
+    
     def _create_evaluation_prompt(
         self, 
         before_content: str, 
@@ -151,6 +175,9 @@ class OpenAIService:
     ) -> str:
         """평가 프롬프트 생성"""
         
+        # 현재 적용된 규칙들 정보 가져오기
+        applied_rules_info = self._get_applied_rules_info(metadata)
+        
         return f"""
 다음 법률 문서의 전처리 결과를 평가하고 구체적인 개선 제안을 제공해주세요.
 
@@ -158,6 +185,9 @@ class OpenAIService:
 - 법원 유형: {metadata.get('court_type', 'N/A')}
 - 사건 유형: {metadata.get('case_type', 'N/A')}
 - 연도: {metadata.get('year', 'N/A')}
+
+**이미 적용된 기존 규칙들:**
+{applied_rules_info}
 
 **전처리 전 내용 (처음 800자):**
 {before_content[:800]}...
@@ -169,6 +199,8 @@ class OpenAIService:
 1. 전처리 품질을 정량적으로 평가하세요
 2. 발견된 문제점들을 errors 배열에 나열하세요
 3. **전처리된 텍스트를 분석하여 개선 가능한 패턴을 찾아 제안하세요**
+
+**⚠️ 중요: 위에 나열된 기존 규칙들과 중복되지 않는 새로운 개선 제안만 생성하세요**
 
 **개선 제안 생성 (보수적이고 안전한 노이즈 제거):**
 - **확실한 노이즈만 제거하는 구체적이고 안전한 패턴을 제안하세요**
@@ -196,7 +228,11 @@ class OpenAIService:
 4. 토큰 절감률: 전처리로 인한 토큰 수 감소 비율 (%)
 5. parsing_errors: 파싱 과정에서 발생한 오류 개수
 
-**중요: suggestions 배열에는 발견한 모든 개선 제안을 포함하세요. 빈 배열로 두지 마세요.**
+**⚠️ 중요 지침:**
+1. **기존 규칙과 중복되는 제안은 절대 생성하지 마세요**
+2. **위에 나열된 규칙들이 이미 처리하지 못한 새로운 패턴만 제안하세요**
+3. **중복 확인: 제안하려는 패턴이 기존 규칙과 90% 이상 유사하면 제외하세요**
+4. **빈 suggestions 배열도 허용됩니다 - 새로운 개선점이 없다면 빈 배열을 반환하세요**
 
 반드시 다음 JSON 형식으로만 응답하세요:
 

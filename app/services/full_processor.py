@@ -13,8 +13,8 @@ from app.models.document import (
 )
 from app.core.config import settings
 from app.core.database import document_repo, result_repo, cache_manager
-from app.services.rules_engine import DSLEngine
 from app.services.openai_service import OpenAIService
+from app.services.dsl_rules import dsl_manager
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,6 @@ class FullProcessor:
     """전량 처리기"""
     
     def __init__(self):
-        self.dsl_engine = DSLEngine()
         self.openai_service = OpenAIService()
         self.current_job: Optional[BatchJob] = None
         self.processing_stats = {
@@ -380,11 +379,10 @@ class FullProcessor:
                 "format_type": case_data.get("format_type")
             }
             
-            # 규칙 적용
+            # DSL 규칙 적용
             original_content = case_data.get("content", "")
-            processed_content, applied_rules = self.dsl_engine.apply_rules(
-                original_content, metadata
-            )
+            processed_content, rule_results = dsl_manager.apply_rules(original_content)
+            applied_rules = [result['rule_id'] for result in rule_results['applied_rules']]
             
             end_time = datetime.now()
             processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
@@ -409,7 +407,7 @@ class FullProcessor:
                         "decision_date": case_data.get("decision_date", ""),
                         "original_content": original_content,
                         "processed_content": processed_content,
-                        "rules_version": "v1.0.0",
+                        "rules_version": self._get_current_rules_version(),
                         "processing_mode": "full",
                         "processing_time_ms": processing_time_ms,
                         "token_count_before": int(token_count_before),
@@ -655,3 +653,12 @@ class FullProcessor:
         """체크포인트에서 처리 재개"""
         logger.info(f"Resuming processing from checkpoint: {batch_job.job_id}")
         # 실제로는 중단된 지점부터 재시작
+    
+    def _get_current_rules_version(self) -> str:
+        """현재 DSL 규칙 버전 가져오기"""
+        try:
+            from app.services.dsl_rules import dsl_manager
+            return dsl_manager.version
+        except Exception as e:
+            logger.warning(f"규칙 버전 로드 실패: {e}")
+            return "v1.0.0"

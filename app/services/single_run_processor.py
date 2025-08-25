@@ -12,8 +12,9 @@ from app.models.document import (
 )
 from app.core.config import settings, processing_mode, quality_gates
 from app.core.database import document_repo, result_repo, cache_manager
-from app.services.rules_engine import DSLEngine, AutoPatcher, RulesVersionManager
+# RulesVersionManager 제거됨 - 필요시 DSLRuleManager에서 버전 관리
 from app.services.openai_service import OpenAIService
+from app.services.dsl_rules import dsl_manager
 from app.services.safety_gates import safety_gate_manager
 
 logger = logging.getLogger(__name__)
@@ -23,12 +24,9 @@ class SingleRunProcessor:
     """단건 점검 처리기"""
     
     def __init__(self):
-        self.dsl_engine = DSLEngine()
-        self.auto_patcher = AutoPatcher(self.dsl_engine)
         self.openai_service = OpenAIService()
-        self.version_manager = RulesVersionManager()
         self.consecutive_passes = 0
-        self.current_rules_version = "v1.0.0"
+        self.current_rules_version = self._get_current_rules_version()
     
     async def process_single_case(self, case_id: str) -> Dict[str, Any]:
         """단일 케이스 처리"""
@@ -92,10 +90,6 @@ class SingleRunProcessor:
         """전처리 실행"""
         start_time = datetime.now()
         
-        # 현재 규칙 로드
-        latest_rules = await self._get_current_rules()
-        self.dsl_engine.load_rules_from_dsl(latest_rules["rules_content"])
-        
         # 케이스 메타데이터 준비
         metadata = {
             "court_type": case_data.get("court_type"),
@@ -104,11 +98,10 @@ class SingleRunProcessor:
             "format_type": case_data.get("format_type")
         }
         
-        # 규칙 적용
+        # DSL 규칙 적용
         original_content = case_data["original_content"]
-        processed_content, applied_rules = self.dsl_engine.apply_rules(
-            original_content, metadata
-        )
+        processed_content, rule_results = dsl_manager.apply_rules(original_content)
+        applied_rules = [result['rule_id'] for result in rule_results['applied_rules']]
         
         end_time = datetime.now()
         processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
@@ -302,87 +295,43 @@ class SingleRunProcessor:
             logger.error(f"Failed to generate auto patch for case {case_id}: {e}")
     
     async def _apply_patch_suggestion(self, suggestion: Dict[str, Any]):
-        """패치 제안 적용"""
+        """패치 제안 적용 (DSLRuleManager 사용)"""
         try:
-            # 현재 규칙 가져오기
-            current_rules = await self._get_current_rules()
+            # DSLRuleManager를 통해 직접 규칙 추가
+            from app.services.dsl_rules import DSLRule
             
-            # 패치 적용
-            updated_rules = self.auto_patcher.apply_patch(
-                suggestion, current_rules["rules_content"]
+            new_rule = DSLRule(
+                rule_id=f"auto_patch_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                rule_type=suggestion.get('rule_type', 'noise_removal'),
+                pattern=suggestion.get('pattern_before', ''),
+                replacement=suggestion.get('pattern_after', ''),
+                description=f"Auto patch: {suggestion.get('description', '')}",
+                priority=90,  # 높은 우선순위
+                performance_score=suggestion.get('confidence_score', 0.8)
             )
             
-            # 안전 게이트 실행
-            gate_results = await safety_gate_manager.run_all_gates(
-                self.current_rules_version, updated_rules
-            )
+            # 규칙 추가
+            success = dsl_manager.add_rule(new_rule)
             
-            all_gates_passed = all(result.passed for result in gate_results)
-            
-            if all_gates_passed:
-                # 새 버전 생성
-                new_version = self.version_manager.increment_version("patch")
+            if success:
+                # 버전은 DSLRuleManager에서 관리됨
+                self.current_rules_version = self._get_current_rules_version()
                 
-                # 규칙 저장
-                version_data = self.version_manager.create_version_tag(
-                    updated_rules,
-                    f"Auto patch: {suggestion['description']}"
-                )
-                
-                # 데이터베이스에 저장 (실제 구현에서)
-                self.current_rules_version = new_version
-                
-                logger.info(f"Applied patch {suggestion['patch_id']}, new version: {new_version}")
+                logger.info(f"Applied patch rule {new_rule.rule_id}")
             else:
-                logger.warning(f"Patch {suggestion['patch_id']} failed safety gates")
+                logger.warning(f"Failed to add patch rule: {new_rule.rule_id}")
                 
         except Exception as e:
             logger.error(f"Failed to apply patch suggestion: {e}")
     
-    async def _get_current_rules(self) -> Dict[str, Any]:
-        """현재 규칙 가져오기"""
-        # 실제로는 데이터베이스에서 로드
-        return {
-            "version": self.current_rules_version,
-            "rules_content": self._get_default_rules()
-        }
-    
-    def _get_default_rules(self) -> str:
-        """기본 규칙 반환"""
-        default_rules = {
-            "rules": [
-                {
-                    "rule_id": "page_number_001",
-                    "rule_type": "page_number_removal",
-                    "pattern": r"(?:^|\n)\s*(?:페이지|page)\s*\d+\s*(?:\n|$)",
-                    "replacement": "\n",
-                    "description": "페이지번호 제거",
-                    "priority": 100,
-                    "enabled": True
-                },
-                {
-                    "rule_id": "separator_001",
-                    "rule_type": "separator_removal", 
-                    "pattern": r"(?:^|\n)\s*[-=]{3,}\s*(?:\n|$)",
-                    "replacement": "\n",
-                    "description": "구분선 제거",
-                    "priority": 90,
-                    "enabled": True
-                },
-                {
-                    "rule_id": "whitespace_001",
-                    "rule_type": "whitespace_normalization",
-                    "pattern": r"\s{2,}",
-                    "replacement": " ",
-                    "description": "공백 정규화",
-                    "priority": 80,
-                    "enabled": True
-                }
-            ]
-        }
-        
-        import json
-        return json.dumps(default_rules, indent=2, ensure_ascii=False)
+    def _get_current_rules_version(self) -> str:
+        """현재 DSL 규칙 버전 가져오기"""
+        try:
+            from app.services.dsl_rules import dsl_manager
+            return dsl_manager.version
+        except Exception as e:
+            logger.warning(f"규칙 버전 로드 실패: {e}")
+            return "v1.0.0"
     
     def _generate_diff_summary(self, before: str, after: str) -> str:
         """Diff 요약 생성"""

@@ -263,7 +263,7 @@ class BatchProcessor:
                         "decision_date": original_case.get("decision_date", ""),
                         "original_content": original_content,
                         "processed_content": processed_content,
-                        "rules_version": "v1.0.0",
+                        "rules_version": self._get_current_rules_version(),
                         "processing_mode": "batch",
                         "batch_job_id": job.job_id,
                         "processing_time_ms": 0,  # 배치에서는 개별 처리 시간 측정 안함
@@ -625,6 +625,15 @@ class BatchProcessor:
         # 최신 순으로 정렬
         sorted_history = sorted(self.job_history, key=lambda x: x.created_at, reverse=True)
         return [job.to_dict() for job in sorted_history[:limit]]
+    
+    def _get_current_rules_version(self) -> str:
+        """현재 DSL 규칙 버전 가져오기"""
+        try:
+            from app.services.dsl_rules import dsl_manager
+            return dsl_manager.version
+        except Exception as e:
+            logger.warning(f"규칙 버전 로드 실패: {e}")
+            return "v1.0.0"
 
 
 # 전역 배치 프로세서 인스턴스

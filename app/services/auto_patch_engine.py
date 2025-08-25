@@ -67,6 +67,12 @@ class AutoPatchEngine:
                 pattern_before = suggestion.get('pattern_before', '')
                 pattern_after = suggestion.get('pattern_after', '')
                 
+                # 중복 규칙 확인 (추가된 부분)
+                if self._is_duplicate_pattern(pattern_before, rule_type):
+                    print(f"🔧 DEBUG: 패치 제안 제외: 중복 패턴 발견 - {description}")
+                    logger.info(f"패치 제안 제외: 중복 패턴 - {description}")
+                    continue
+                
                 # 패치 제안 생성
                 patch = PatchSuggestion(
                     suggestion_id=f"patch_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}",
@@ -92,6 +98,65 @@ class AutoPatchEngine:
                 logger.error(f"패치 제안 분석 오류: {e}")
         
         return patch_suggestions
+    
+    def _is_duplicate_pattern(self, pattern: str, rule_type: str) -> bool:
+        """제안된 패턴이 기존 규칙과 중복되는지 확인"""
+        try:
+            from app.services.dsl_rules import dsl_manager
+            
+            # 현재 활성화된 규칙들 가져오기
+            existing_rules = dsl_manager.get_sorted_rules()
+            
+            for existing_rule in existing_rules:
+                # 동일한 규칙 타입만 비교
+                if existing_rule.rule_type != rule_type:
+                    continue
+                
+                # 패턴 유사도 확인
+                if self._calculate_pattern_similarity(pattern, existing_rule.pattern) > 0.8:
+                    print(f"🔧 DEBUG: 중복 패턴 발견 - 기존: {existing_rule.rule_id}")
+                    print(f"🔧 DEBUG: 기존 패턴: {existing_rule.pattern[:100]}...")
+                    print(f"🔧 DEBUG: 새 패턴: {pattern[:100]}...")
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.warning(f"중복 패턴 확인 실패: {e}")
+            return False
+    
+    def _calculate_pattern_similarity(self, pattern1: str, pattern2: str) -> float:
+        """두 정규식 패턴의 유사도를 계산 (0.0 ~ 1.0)"""
+        try:
+            # 정규식 특수문자 제거하고 핵심 키워드 추출
+            import re
+            
+            # 기본적인 정규식 메타문자 제거
+            clean_pattern1 = re.sub(r'[(){}[\]\\^$.*+?|]', ' ', pattern1.lower())
+            clean_pattern2 = re.sub(r'[(){}[\]\\^$.*+?|]', ' ', pattern2.lower())
+            
+            # 공백으로 분할하여 키워드 추출
+            keywords1 = set(word for word in clean_pattern1.split() if len(word) > 1)
+            keywords2 = set(word for word in clean_pattern2.split() if len(word) > 1)
+            
+            if not keywords1 or not keywords2:
+                return 0.0
+            
+            # Jaccard 유사도 계산
+            intersection = len(keywords1.intersection(keywords2))
+            union = len(keywords1.union(keywords2))
+            
+            similarity = intersection / union if union > 0 else 0.0
+            
+            print(f"🔧 DEBUG: 패턴 유사도 계산 - {similarity:.2f}")
+            print(f"🔧 DEBUG: 키워드1: {keywords1}")
+            print(f"🔧 DEBUG: 키워드2: {keywords2}")
+            
+            return similarity
+            
+        except Exception as e:
+            logger.warning(f"패턴 유사도 계산 실패: {e}")
+            return 0.0
     
     def generate_enhanced_suggestions(self, original_content: str, 
                                     processed_content: str,
