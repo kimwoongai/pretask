@@ -139,7 +139,14 @@ async def process_single_case(case_id: str):
         
         print(f"🔍 DEBUG: DSL 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
         print(f"🔍 DEBUG: 적용된 규칙: {rule_results['stats']['applied_rule_count']}개")
-        print(f"🔍 DEBUG: 전처리 결과 시작 부분: {processed_content[:200]}...")
+        print(f"🔍 DEBUG: 적용된 규칙 상세:")
+        for rule in rule_results['applied_rules']:
+            print(f"  - {rule['rule_id']}: {rule['description']} (길이 변화: {rule['length_before']} → {rule['length_after']})")
+        print(f"🔍 DEBUG: 전처리 결과 시작 부분: {processed_content[:300]}...")
+        print(f"🔍 DEBUG: 원본에서 'PDF로 보기' 검색: {'PDF로 보기' in original_content}")
+        print(f"🔍 DEBUG: 처리 후 'PDF로 보기' 검색: {'PDF로 보기' in processed_content}")
+        print(f"🔍 DEBUG: 원본에서 '판례상세 저장' 검색: {'판례상세 저장' in original_content}")
+        print(f"🔍 DEBUG: 처리 후 '판례상세 저장' 검색: {'판례상세 저장' in processed_content}")
         logger.info(f"🔍 DEBUG: DSL 전처리 완료 - {len(original_content)}자 → {len(processed_content)}자")
         
         # OpenAI API로 품질 평가 및 개선 제안 생성

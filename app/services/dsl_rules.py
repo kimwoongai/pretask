@@ -40,16 +40,13 @@ class DSLRule:
                 # 노이즈 제거 규칙
                 new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE)
                 applied = new_text != text
+                
+                # 특정 규칙에 대해 상세 디버깅
+                if self.rule_id in ['heading_one_line_noise', 'ui_elements_removal', 'block_portal_pdf_tips'] and applied:
+                    print(f"🔧 DEBUG: 규칙 {self.rule_id} 적용됨 - 길이 변화: {len(text)} → {len(new_text)}")
+                    
             elif self.rule_type == 'fact_extraction':
                 # 사실 추출 규칙 (2단계에서 사용 예정 - 현재는 비활성화)
-                # matches = re.findall(self.pattern, text, flags=re.DOTALL | re.IGNORECASE)
-                # if matches:
-                #     new_text = ' '.join(matches)
-                #     applied = True
-                # else:
-                #     new_text = text
-                #     applied = False
-                # 1단계에서는 사실 추출 규칙 적용하지 않음
                 new_text = text
                 applied = False
             elif self.rule_type == 'legal_filtering':
@@ -63,6 +60,10 @@ class DSLRule:
                     else:
                         applied = True
                 new_text = '. '.join(filtered_sentences)
+            elif self.rule_type == 'post_normalize':
+                # 후처리 정규화 규칙 (공백, 줄바꿈 등)
+                new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE)
+                applied = new_text != text
             else:
                 # 기본 치환 규칙
                 new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE)
@@ -129,6 +130,10 @@ class DSLRuleManager:
             # MongoDB에서 로드 시도
             if self._load_from_mongodb():
                 logger.info(f"DSL 규칙 MongoDB 로드 완료: {len(self.rules)}개 규칙 (버전 {self.version})")
+                print(f"🔧 DEBUG: MongoDB에서 {len(self.rules)}개 규칙 로드됨")
+                # 로드된 규칙 상위 5개 출력
+                for i, (rule_id, rule) in enumerate(list(self.rules.items())[:5]):
+                    print(f"  - {rule_id}: {rule.description} (우선순위: {rule.priority}, 활성: {rule.enabled})")
                 return
             else:
                 logger.info("MongoDB에 기존 규칙 없음, 기본 규칙 생성...")
@@ -138,6 +143,7 @@ class DSLRuleManager:
                 logger.info("기본 DSL 규칙 생성 완료")
         except Exception as e:
             logger.error(f"DSL 규칙 로드 실패: {e}")
+            print(f"🔧 ERROR: DSL 규칙 로드 실패: {e}")
             self._create_default_rules()
     
     def _load_from_mongodb(self) -> bool:

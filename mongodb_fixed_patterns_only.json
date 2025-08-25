@@ -1,7 +1,7 @@
 {
   "_id": "68a58cea3c9a110dddf6c28f",
-  "version": "1.2.3",
-  "updated_at": "2025-08-26T00:30:00.000000",
+  "version": "1.2.4",
+  "updated_at": "2025-08-26T01:00:00.000000",
   "rules": [
     {
       "rule_id": "block_portal_pdf_tips",
@@ -33,11 +33,20 @@
     {
       "rule_id": "heading_one_line_noise",
       "rule_type": "noise_removal",
-      "pattern": "(?m)^(?:판례상세 저장 인쇄 보관 전자팩스 공유 화면내 검색 조회 닫기|상세내용|판결내용|요지|닫기)\\s*$",
+      "pattern": "(?m)^(?:판례상세 저장 인쇄 보관 전자팩스 공유 화면내 검색 조회 닫기|상세내용|판결내용|요지|닫기)$",
       "replacement": "",
       "priority": 127,
       "enabled": true,
-      "description": "단독 행의 포털/구조 제목 제거 (PDF 관련은 다른 규칙이 담당)"
+      "description": "단독 행의 포털/구조 제목 제거"
+    },
+    {
+      "rule_id": "pdf_button_text",
+      "rule_type": "noise_removal",
+      "pattern": "(?m)^PDF로 보기.*$",
+      "replacement": "",
+      "priority": 126,
+      "enabled": true,
+      "description": "PDF 보기 관련 단일행 메뉴 제거(확장 표현 포함)"
     },
     {
       "rule_id": "block_youji_summary",
@@ -172,7 +181,16 @@
       "replacement": "",
       "priority": 112,
       "enabled": true,
-      "description": "기타 잡음 문구 정리(페이지/구분선은 구조 규칙이 담당)"
+      "description": "기타 잡음 문구 정리(페이지/구분선은 구조 규칙 담당)"
+    },
+    {
+      "rule_id": "related_judgment_block",
+      "rule_type": "noise_removal",
+      "pattern": "【연관판결】[^【]+",
+      "replacement": "",
+      "priority": 111,
+      "enabled": true,
+      "description": "연관판결 블록 제거(개별 규칙 흡수)"
     },
     {
       "rule_id": "legal_sections_heading_strip",
@@ -211,29 +229,20 @@
       "description": "상고 기각·비용 문구 제거"
     },
     {
-      "rule_id": "litigation_cost_removal",
+      "rule_id": "litigation_costs_all",
       "rule_type": "noise_removal",
-      "pattern": "소송비용은.*?부담한다\\.",
+      "pattern": "(소송비용|항소비용).*부담한다\\.",
       "replacement": "",
       "priority": 107,
       "enabled": true,
-      "description": "소송비용 부담 문구 제거(일반형)"
-    },
-    {
-      "rule_id": "litigation_costs_appeal",
-      "rule_type": "noise_removal",
-      "pattern": "항소비용은.*?부담한다\\.",
-      "replacement": "",
-      "priority": 106,
-      "enabled": true,
-      "description": "항소비용 부담 문구 제거(원고/피고/각자 포함)"
+      "description": "소송비용·항소비용 부담 문구 전부 제거 (원고/피고/각자·분담 비율 포함)"
     },
     {
       "rule_id": "ai_legal_filtering_specific_refs",
       "rule_type": "legal_filtering",
       "pattern": "\\d+누\\d+\\s*판결\\s*참조|대통령령 제\\d+호|지방세법 제\\d+조",
       "replacement": "",
-      "priority": 105,
+      "priority": 106,
       "enabled": true,
       "description": "구체 판례번호/법조문 인용 제거"
     },
@@ -242,36 +251,36 @@
       "rule_type": "legal_filtering",
       "pattern": "상고비용은.*?부담으로 한다\\.",
       "replacement": "",
-      "priority": 104,
+      "priority": 105,
       "enabled": true,
-      "description": "상고비용 문구 제거"
+      "description": "상고비용 문구 제거(표현 변형 포함)"
     },
     {
       "rule_id": "ai_litigation_representative_removal",
       "rule_type": "redundancy_removal",
       "pattern": "\\(소송대리인 변호사.*?\\)",
       "replacement": "",
-      "priority": 103,
+      "priority": 104,
       "enabled": true,
       "description": "소송대리인 괄호 정보 제거"
     },
     {
       "rule_id": "structural_noise_removal_fixed",
       "rule_type": "noise_removal",
-      "pattern": "(?m)^(?:【판례내용】|【청구취지】|【판시사항】)$|\\[\\d+\\]|페이지\\s+[0-9]+|-----",
+      "pattern": "(?m)^(?:【판례내용】|【청구취지】|【판시사항】)$|\\[\\d+\\]|페이지\\s+[0-9]+|^-{2,}$",
       "replacement": "",
       "priority": 102,
       "enabled": true,
-      "description": "구조적 노이즈 제목/표식 제거"
+      "description": "구조적 노이즈 제목/표식/페이지 번호/구분선 제거"
     },
     {
-      "rule_id": "pdf_button_text",
+      "rule_id": "ui_single_word_line",
       "rule_type": "noise_removal",
-      "pattern": "(?m)^PDF로 보기.*$",
+      "pattern": "^(저장|인쇄|보관|전자팩스|공유|화면내 검색|조회|닫기)$",
       "replacement": "",
-      "priority": 3,
+      "priority": 101,
       "enabled": true,
-      "description": "PDF 보기 관련 단일행 메뉴 제거(확장 표현 포함)"
+      "description": "UI 단일 항목 라인 제거(개별 규칙 흡수)"
     },
     {
       "rule_id": "collapse_spaces",
