@@ -175,31 +175,26 @@ class BatchProcessor:
                 try:
                     print(f"🔄 DEBUG: 케이스 {case_id} 처리 시작")
                     
-                    # 원본 케이스 데이터 찾기 - 개선된 매칭 로직
-                    original_case = cases_dict.get(case_id)
-                    if not original_case:
+                    # 원본 케이스 데이터 찾기 - original_document 사용
+                    sample_case = cases_dict.get(case_id)
+                    if not sample_case:
                         # 대체 매칭 시도
                         for stored_case in sample_cases:
-                            if (str(stored_case.get("_id", "")) == case_id or 
-                                stored_case.get("precedent_id", "") == case_id or
-                                stored_case.get("case_id", "") == case_id):
-                                original_case = stored_case
+                            if (stored_case.get("case_id", "") == case_id):
+                                sample_case = stored_case
                                 break
                     
-                    if not original_case:
-                        error_msg = f"원본 케이스를 찾을 수 없습니다: {case_id}"
+                    if not sample_case or "original_document" not in sample_case:
+                        error_msg = f"샘플 케이스 또는 원본 문서 정보를 찾을 수 없습니다: {case_id}"
                         logger.warning(error_msg)
                         job.errors.append(error_msg)
                         failed_count += 1
                         continue
                     
-                    # 텍스트 내용 추출 - 다양한 필드명 시도
-                    original_content = ""
-                    content_fields = ["content", "text", "body", "document_text", "full_text", "before_content"]
-                    for field in content_fields:
-                        if field in original_case and original_case[field]:
-                            original_content = original_case[field]
-                            break
+                    original_case = sample_case["original_document"]
+                    
+                    # 텍스트 내용은 sample_case에서 가져옴 (이미 전처리됨)
+                    original_content = sample_case["before_content"]
                     
                     if not original_content:
                         error_msg = f"케이스 {case_id}에서 텍스트 내용을 찾을 수 없습니다"
@@ -210,18 +205,21 @@ class BatchProcessor:
                     
                     print(f"📝 DEBUG: 케이스 {case_id} 원본 텍스트 길이: {len(original_content)}자")
                     
-                    # 전처리 수행
-                    try:
-                        processed_content, processing_result = dsl_manager.apply_rules(original_content)
-                        applied_rules = [rule["rule_id"] for rule in processing_result["applied_rules"]]
-                        print(f"✅ DEBUG: 케이스 {case_id} 전처리 완료 - 처리 후 길이: {len(processed_content)}자")
-                        print(f"📊 DEBUG: 적용된 규칙 수: {len(applied_rules)}, 규칙: {applied_rules}")
-                    except Exception as process_error:
-                        error_msg = f"케이스 {case_id} 전처리 실패: {process_error}"
-                        logger.error(error_msg)
+                    # 전처리된 내용은 sample_case에서 가져옴 (이미 처리됨)
+                    processed_content = sample_case["after_content"]
+                    
+                    if not processed_content:
+                        error_msg = f"케이스 {case_id}에서 전처리된 내용을 찾을 수 없습니다"
+                        logger.warning(error_msg)
                         job.errors.append(error_msg)
                         failed_count += 1
                         continue
+                    
+                    # 적용된 규칙 정보는 다시 추출 (디버깅용)
+                    _, processing_result = dsl_manager.apply_rules(original_content)
+                    applied_rules = [rule["rule_id"] for rule in processing_result["applied_rules"]]
+                    print(f"✅ DEBUG: 케이스 {case_id} 전처리 사용 - 처리 후 길이: {len(processed_content)}자")
+                    print(f"📊 DEBUG: 적용된 규칙 수: {len(applied_rules)}, 규칙: {applied_rules}")
                     
                     # 토큰 수 계산 - OpenAI 서비스 사용
                     try:
@@ -425,6 +423,17 @@ class BatchProcessor:
                         "court_type": case.get("court_type", case.get("court", "")),
                         "case_type": case.get("case_type", case.get("type", "")),
                         "year": case.get("year", case.get("date", "")[:4] if case.get("date") else "")
+                    },
+                    # 원본 MongoDB 문서 정보 보존 (저장시 필요)
+                    "original_document": {
+                        "_id": case.get("_id"),
+                        "precedent_id": case.get("precedent_id", ""),
+                        "case_name": case.get("case_name", ""),
+                        "case_number": case.get("case_number", ""),
+                        "court_name": case.get("court_name", ""),
+                        "court_type": case.get("court_type", ""),
+                        "decision_date": case.get("decision_date", ""),
+                        content_field: original_content  # 동적 필드명 사용
                     }
                 }
                 
