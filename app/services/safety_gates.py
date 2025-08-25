@@ -11,7 +11,7 @@ import logging
 
 from app.models.document import QualityMetrics, SafetyGate, ProcessingResult
 from app.core.database import result_repo, rules_repo
-from app.services.rules_engine import DSLEngine
+from app.services.dsl_rules import dsl_manager
 
 logger = logging.getLogger(__name__)
 
@@ -139,8 +139,7 @@ class SafetyGateManager:
     async def run_unit_test_gate(self, rules_version: str, rules_content: str) -> GateResult:
         """유닛 테스트 게이트"""
         try:
-            dsl_engine = DSLEngine()
-            dsl_engine.load_rules_from_dsl(rules_content)
+            # DSLRuleManager를 사용 (이미 로드된 규칙 사용)
             
             passed_tests = 0
             total_tests = len(self.unit_test_cases)
@@ -148,9 +147,10 @@ class SafetyGateManager:
             
             for test_case in self.unit_test_cases:
                 try:
-                    processed_content, applied_rules = dsl_engine.apply_rules(
+                    processed_content, rule_results = dsl_manager.apply_rules(
                         test_case["input"]
                     )
+                    applied_rules = [result['rule_id'] for result in rule_results['applied_rules']]
                     
                     # 예상 결과와 비교
                     expected = test_case["expected_output"].strip()
@@ -213,8 +213,7 @@ class SafetyGateManager:
                     details={"message": "No regression test cases available"}
                 )
             
-            dsl_engine = DSLEngine()
-            dsl_engine.load_rules_from_dsl(rules_content)
+            # DSLRuleManager를 사용 (이미 로드된 규칙 사용)
             
             regression_failures = 0
             test_details = []
@@ -309,14 +308,14 @@ class SafetyGateManager:
     async def run_performance_test_gate(self, rules_version: str, rules_content: str) -> GateResult:
         """성능 테스트 게이트"""
         try:
-            dsl_engine = DSLEngine()
-            dsl_engine.load_rules_from_dsl(rules_content)
+            # DSLRuleManager를 사용 (이미 로드된 규칙 사용)
             
             # 성능 측정
             test_content = "테스트 내용 " * 1000  # 큰 테스트 내용
             
             start_time = datetime.now()
-            processed_content, applied_rules = dsl_engine.apply_rules(test_content)
+            processed_content, rule_results = dsl_manager.apply_rules(test_content)
+            applied_rules = [result['rule_id'] for result in rule_results['applied_rules']]
             end_time = datetime.now()
             
             processing_time_ms = (end_time - start_time).total_seconds() * 1000
