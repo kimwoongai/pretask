@@ -569,19 +569,49 @@ async def get_cases(
 ):
     """케이스 목록 조회"""
     from app.core.database import db_manager
+    import asyncio
+    
+    # MongoDB 연결 재시도 로직
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # MongoDB Atlas의 precedents_v2 컬렉션에서 조회 (실제 데이터가 있는 컬렉션)
+            collection = db_manager.get_collection("precedents_v2")
+            
+            logger.info(f"Cases API - MongoDB collection status: {collection is not None} (attempt {attempt + 1})")
+            
+            if collection is None:
+                if attempt < max_retries - 1:
+                    logger.warning(f"MongoDB connection unavailable, retrying in {2 ** attempt} seconds...")
+                    await asyncio.sleep(2 ** attempt)
+                    # 연결 재시도
+                    await db_manager.connect()
+                    continue
+                else:
+                    raise HTTPException(
+                        status_code=503, 
+                        detail="Database connection unavailable after multiple retries. Please check MongoDB connection."
+                    )
+            
+            # 연결 테스트
+            await db_manager.mongo_client.admin.command('ping')
+            logger.info("MongoDB connection verified successfully")
+            break
+            
+        except Exception as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"MongoDB connection test failed (attempt {attempt + 1}): {e}")
+                await asyncio.sleep(2 ** attempt)
+                await db_manager.connect()
+                continue
+            else:
+                logger.error(f"All MongoDB connection attempts failed: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail=f"Database connection failed after {max_retries} attempts: {str(e)}"
+                )
     
     try:
-        # MongoDB Atlas의 precedents_v2 컬렉션에서 조회 (실제 데이터가 있는 컬렉션)
-        collection = db_manager.get_collection("precedents_v2")
-        
-        logger.info(f"Cases API - MongoDB collection status: {collection is not None}")
-        
-        if collection is None:
-            raise HTTPException(
-                status_code=503, 
-                detail="Database connection unavailable. Please check MongoDB connection."
-            )
-        
         logger.info("Successfully got MongoDB collection for cases list")
         
         # 필터 조건 구성
@@ -596,11 +626,11 @@ async def get_cases(
         
         logger.info(f"Filter query: {filter_query}")
         
-        # 총 개수 조회
+        # 총 개수 조회 (타임아웃 설정)
         total_count = await collection.count_documents(filter_query)
         logger.info(f"Total documents matching filter: {total_count}")
         
-        # 케이스 목록 조회
+        # 케이스 목록 조회 (타임아웃 설정)
         cursor = collection.find(filter_query).skip(offset).limit(limit)
         documents = await cursor.to_list(length=limit)
         logger.info(f"Retrieved {len(documents)} documents")
@@ -629,7 +659,7 @@ async def get_cases(
         
     except Exception as e:
         logger.error(f"Failed to fetch cases from MongoDB: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Database query failed: {str(e)}")
 
 
 

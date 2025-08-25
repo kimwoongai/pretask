@@ -23,37 +23,51 @@ class DatabaseManager:
         """데이터베이스 연결"""
         try:
             # MongoDB 연결 (선택사항)
-            try:
-                logger.info(f"Attempting to connect to MongoDB with URL: {settings.mongodb_url[:20]}...")
-                logger.info(f"Database name: {settings.mongodb_db}")
-                
-                self.mongo_client = AsyncIOMotorClient(
-                    settings.mongodb_url, 
-                    serverSelectionTimeoutMS=10000,  # 10초로 증가
-                    connectTimeoutMS=10000,
-                    socketTimeoutMS=10000
-                )
-                self.mongo_db = self.mongo_client[settings.mongodb_db]
-                
-                # 연결 테스트
-                await self.mongo_client.admin.command('ping')
-                logger.info("MongoDB connection established successfully")
-                
-                # precedents_v2 컬렉션 존재 확인
-                collections = await self.mongo_db.list_collection_names()
-                logger.info(f"Available collections: {collections}")
-                
-                if "precedents_v2" in collections:
-                    count = await self.mongo_db.precedents_v2.count_documents({})
-                    logger.info(f"precedents_v2 collection has {count} documents")
-                else:
-                    logger.warning("precedents_v2 collection not found!")
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"Attempting to connect to MongoDB (attempt {attempt + 1}/{max_retries}) with URL: {settings.mongodb_url[:20]}...")
+                    logger.info(f"Database name: {settings.mongodb_db}")
                     
-            except Exception as e:
-                logger.error(f"MongoDB connection failed: {e}")
-                logger.error(f"MongoDB URL: {settings.mongodb_url}")
-                self.mongo_client = None
-                self.mongo_db = None
+                    self.mongo_client = AsyncIOMotorClient(
+                        settings.mongodb_url, 
+                        serverSelectionTimeoutMS=30000,  # 30초로 증가
+                        connectTimeoutMS=30000,
+                        socketTimeoutMS=30000,
+                        maxPoolSize=50,  # 연결 풀 크기 증가
+                        minPoolSize=10,
+                        maxIdleTimeMS=45000,  # 유휴 연결 시간
+                        waitQueueTimeoutMS=30000,  # 대기열 타임아웃
+                        retryWrites=True  # 재시도 활성화
+                    )
+                    self.mongo_db = self.mongo_client[settings.mongodb_db]
+                    
+                    # 연결 테스트
+                    await self.mongo_client.admin.command('ping')
+                    logger.info("MongoDB connection established successfully")
+                    
+                    # precedents_v2 컬렉션 존재 확인
+                    collections = await self.mongo_db.list_collection_names()
+                    logger.info(f"Available collections: {collections}")
+                    
+                    if "precedents_v2" in collections:
+                        count = await self.mongo_db.precedents_v2.count_documents({})
+                        logger.info(f"precedents_v2 collection has {count} documents")
+                    else:
+                        logger.warning("precedents_v2 collection not found!")
+                    
+                    break  # 성공하면 루프 종료
+                    
+                except Exception as e:
+                    logger.warning(f"MongoDB connection attempt {attempt + 1} failed: {e}")
+                    if attempt == max_retries - 1:
+                        logger.error(f"All MongoDB connection attempts failed. Final error: {e}")
+                        logger.error(f"MongoDB URL: {settings.mongodb_url}")
+                        self.mongo_client = None
+                        self.mongo_db = None
+                    else:
+                        # 재시도 전 대기
+                        await asyncio.sleep(2 ** attempt)  # 지수 백오프
             
             # Redis 연결 (선택사항)
             try:
