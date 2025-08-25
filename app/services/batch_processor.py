@@ -102,8 +102,8 @@ class BatchProcessor:
             
             print(f"✅ DEBUG: 배치 처리 완료 - {job.processed_cases}개 처리됨")
             
-            # 3. 배치 처리 결과를 MongoDB에 저장
-            await self._update_job_status(job, "saving", "처리 결과를 MongoDB에 저장 중...")
+            # 3. 배치 전처리 결과를 MongoDB에 저장
+            await self._update_job_status(job, "saving", "전처리 결과를 MongoDB에 저장 중...")
             await self._save_batch_results_to_mongodb(sample_cases, batch_results, job)
             
             # 4. 결과 분석 및 패치 적용
@@ -138,40 +138,125 @@ class BatchProcessor:
         """배치 처리 결과를 MongoDB cases 컬렉션에 저장"""
         try:
             print(f"💾 DEBUG: 배치 결과 MongoDB 저장 시작 - {len(batch_results)}개 케이스")
+            logger.info(f"배치 결과 MongoDB 저장 시작 - {len(batch_results)}개 케이스")
             
+            # MongoDB 연결 확인
             cases_collection = db_manager.get_collection("cases")
             if cases_collection is None:
-                logger.error("cases 컬렉션을 찾을 수 없습니다")
+                error_msg = "cases 컬렉션을 찾을 수 없습니다. MongoDB 연결을 확인해주세요."
+                logger.error(error_msg)
+                job.errors.append(error_msg)
+                print(f"❌ DEBUG: {error_msg}")
+                return
+            
+            # MongoDB 연결 상태 테스트
+            try:
+                await db_manager.mongo_client.admin.command('ping')
+                print(f"✅ DEBUG: MongoDB 연결 확인됨")
+            except Exception as ping_error:
+                error_msg = f"MongoDB 연결 실패: {ping_error}"
+                logger.error(error_msg)
+                job.errors.append(error_msg)
+                print(f"❌ DEBUG: {error_msg}")
                 return
             
             saved_count = 0
+            failed_count = 0
+            
+            # sample_cases를 딕셔너리로 변환하여 빠른 조회 가능
+            cases_dict = {}
+            for case in sample_cases:
+                case_id = case.get("case_id", str(case.get("_id", "")))
+                cases_dict[case_id] = case
+            
+            print(f"🔍 DEBUG: 샘플 케이스 매핑 완료 - {len(cases_dict)}개 케이스")
             
             for case_id, metrics, errors, suggestions in batch_results:
                 try:
-                    # 원본 케이스 데이터 찾기
-                    original_case = next(
-                        (case for case in sample_cases if str(case.get("_id", "")) == case_id or case.get("precedent_id", "") == case_id), 
-                        None
-                    )
+                    print(f"🔄 DEBUG: 케이스 {case_id} 처리 시작")
+                    
+                    # 원본 케이스 데이터 찾기 - 개선된 매칭 로직
+                    original_case = cases_dict.get(case_id)
+                    if not original_case:
+                        # 대체 매칭 시도
+                        for stored_case in sample_cases:
+                            if (str(stored_case.get("_id", "")) == case_id or 
+                                stored_case.get("precedent_id", "") == case_id or
+                                stored_case.get("case_id", "") == case_id):
+                                original_case = stored_case
+                                break
                     
                     if not original_case:
-                        logger.warning(f"원본 케이스를 찾을 수 없습니다: {case_id}")
+                        error_msg = f"원본 케이스를 찾을 수 없습니다: {case_id}"
+                        logger.warning(error_msg)
+                        job.errors.append(error_msg)
+                        failed_count += 1
                         continue
                     
-                    # 전처리 수행 (배치 결과에는 전처리된 내용이 없으므로 다시 수행)
-                    original_content = original_case.get("content", "")
-                    processing_result = await dsl_manager.process_content(original_content)
-                    processed_content = processing_result["processed_content"]
-                    applied_rules = [rule["rule_id"] for rule in processing_result["applied_rules"]]
+                    # 텍스트 내용 추출 - 다양한 필드명 시도
+                    original_content = ""
+                    content_fields = ["content", "text", "body", "document_text", "full_text", "before_content"]
+                    for field in content_fields:
+                        if field in original_case and original_case[field]:
+                            original_content = original_case[field]
+                            break
                     
-                    # 토큰 수 계산
-                    token_count_before = len(original_content.split())
-                    token_count_after = len(processed_content.split())
-                    token_reduction = ((token_count_before - token_count_after) / token_count_before * 100) if token_count_before > 0 else 0
+                    if not original_content:
+                        error_msg = f"케이스 {case_id}에서 텍스트 내용을 찾을 수 없습니다"
+                        logger.warning(error_msg)
+                        job.errors.append(error_msg)
+                        failed_count += 1
+                        continue
+                    
+                    print(f"📝 DEBUG: 케이스 {case_id} 원본 텍스트 길이: {len(original_content)}자")
+                    
+                    # 전처리 수행
+                    try:
+                        processing_result = await dsl_manager.process_content(original_content)
+                        processed_content = processing_result["processed_content"]
+                        applied_rules = [rule["rule_id"] for rule in processing_result["applied_rules"]]
+                        print(f"✅ DEBUG: 케이스 {case_id} 전처리 완료 - 처리 후 길이: {len(processed_content)}자")
+                    except Exception as process_error:
+                        error_msg = f"케이스 {case_id} 전처리 실패: {process_error}"
+                        logger.error(error_msg)
+                        job.errors.append(error_msg)
+                        failed_count += 1
+                        continue
+                    
+                    # 토큰 수 계산 - OpenAI 서비스 사용
+                    try:
+                        from app.services.openai_service import OpenAIService
+                        openai_service = OpenAIService()
+                        token_count_before = openai_service.calculate_token_count(original_content)
+                        token_count_after = openai_service.calculate_token_count(processed_content)
+                        token_reduction = ((token_count_before - token_count_after) / token_count_before * 100) if token_count_before > 0 else 0
+                    except Exception as token_error:
+                        # 폴백: 단어 수로 계산
+                        logger.warning(f"토큰 계산 실패, 단어 수로 대체: {token_error}")
+                        token_count_before = len(original_content.split())
+                        token_count_after = len(processed_content.split())
+                        token_reduction = ((token_count_before - token_count_after) / token_count_before * 100) if token_count_before > 0 else 0
+                    
+                    # 메트릭스 안전하게 추출
+                    quality_score = 0.7
+                    nrr = 0.7
+                    fpr = 0.8
+                    ss = 0.75
+                    
+                    if hasattr(metrics, 'nrr') and hasattr(metrics, 'fpr') and hasattr(metrics, 'ss'):
+                        nrr = float(metrics.nrr) if metrics.nrr is not None else 0.7
+                        fpr = float(metrics.fpr) if metrics.fpr is not None else 0.8
+                        ss = float(metrics.ss) if metrics.ss is not None else 0.75
+                        quality_score = (nrr + fpr + ss) / 3.0
+                    elif isinstance(metrics, dict):
+                        nrr = float(metrics.get('nrr', 0.7))
+                        fpr = float(metrics.get('fpr', 0.8))
+                        ss = float(metrics.get('ss', 0.75))
+                        quality_score = (nrr + fpr + ss) / 3.0
                     
                     # cases 컬렉션에 저장할 데이터 구성
                     case_data = {
-                        "original_id": str(original_case["_id"]),
+                        "original_id": str(original_case.get("_id", "")),
                         "precedent_id": original_case.get("precedent_id", ""),
                         "case_name": original_case.get("case_name", ""),
                         "case_number": original_case.get("case_number", ""),
@@ -184,15 +269,15 @@ class BatchProcessor:
                         "processing_mode": "batch",
                         "batch_job_id": job.job_id,
                         "processing_time_ms": 0,  # 배치에서는 개별 처리 시간 측정 안함
-                        "token_count_before": token_count_before,
-                        "token_count_after": token_count_after,
-                        "token_reduction_percent": token_reduction,
-                        "quality_score": (metrics.nrr + metrics.fpr + metrics.ss) / 3.0 if hasattr(metrics, 'nrr') else 0.7,
-                        "nrr": metrics.nrr if hasattr(metrics, 'nrr') else 0.7,
-                        "fpr": metrics.fpr if hasattr(metrics, 'fpr') else 0.8,
-                        "ss": metrics.ss if hasattr(metrics, 'ss') else 0.75,
+                        "token_count_before": int(token_count_before),
+                        "token_count_after": int(token_count_after),
+                        "token_reduction_percent": round(token_reduction, 2),
+                        "quality_score": round(quality_score, 3),
+                        "nrr": round(nrr, 3),
+                        "fpr": round(fpr, 3),
+                        "ss": round(ss, 3),
                         "applied_rules": applied_rules,
-                        "errors": errors,
+                        "errors": errors if isinstance(errors, list) else [],
                         "suggestions": suggestions if isinstance(suggestions, list) else [],
                         "status": "completed",
                         "created_at": datetime.now().isoformat(),
@@ -200,29 +285,53 @@ class BatchProcessor:
                     }
                     
                     # MongoDB에 저장 (upsert)
-                    update_result = await cases_collection.update_one(
-                        {"original_id": str(original_case["_id"])},
-                        {"$set": case_data},
-                        upsert=True
-                    )
-                    
-                    if update_result.upserted_id or update_result.modified_count > 0:
-                        saved_count += 1
-                        if saved_count % 10 == 0:  # 10개마다 로그
-                            print(f"💾 DEBUG: {saved_count}개 케이스 저장 완료...")
+                    try:
+                        update_result = await cases_collection.update_one(
+                            {"original_id": str(original_case.get("_id", ""))},
+                            {"$set": case_data},
+                            upsert=True
+                        )
+                        
+                        if update_result.upserted_id or update_result.modified_count > 0:
+                            saved_count += 1
+                            print(f"💾 DEBUG: 케이스 {case_id} 저장 성공 ({saved_count}번째)")
+                            if saved_count % 10 == 0:  # 10개마다 로그
+                                print(f"📊 DEBUG: {saved_count}개 케이스 저장 완료...")
+                                logger.info(f"배치 저장 진행 상황: {saved_count}개 완료")
+                        else:
+                            error_msg = f"케이스 {case_id} 저장 실패 - 업데이트 결과 없음"
+                            logger.warning(error_msg)
+                            failed_count += 1
+                            
+                    except Exception as save_error:
+                        error_msg = f"케이스 {case_id} MongoDB 저장 실패: {save_error}"
+                        logger.error(error_msg)
+                        job.errors.append(error_msg)
+                        failed_count += 1
+                        continue
                     
                 except Exception as case_error:
-                    logger.error(f"케이스 {case_id} 저장 실패: {case_error}")
-                    job.errors.append(f"케이스 {case_id} 저장 실패: {str(case_error)}")
+                    error_msg = f"케이스 {case_id} 처리 실패: {case_error}"
+                    logger.error(error_msg)
+                    job.errors.append(error_msg)
+                    failed_count += 1
                     continue
             
-            print(f"✅ DEBUG: 배치 결과 저장 완료 - {saved_count}개 케이스 저장됨")
-            logger.info(f"배치 결과 MongoDB 저장 완료: {saved_count}개 케이스")
+            # 최종 결과 로그
+            success_msg = f"배치 결과 저장 완료 - 성공: {saved_count}개, 실패: {failed_count}개"
+            print(f"✅ DEBUG: {success_msg}")
+            logger.info(success_msg)
+            
+            if saved_count > 0:
+                print(f"🎉 DEBUG: MongoDB cases 컬렉션에 {saved_count}개 케이스가 성공적으로 저장되었습니다!")
             
         except Exception as e:
-            logger.error(f"배치 결과 MongoDB 저장 실패: {e}")
-            job.errors.append(f"MongoDB 저장 실패: {str(e)}")
-            print(f"❌ DEBUG: 배치 결과 저장 실패: {e}")
+            error_msg = f"배치 결과 MongoDB 저장 중 예상치 못한 오류: {e}"
+            logger.error(error_msg)
+            job.errors.append(error_msg)
+            print(f"❌ DEBUG: {error_msg}")
+            import traceback
+            print(f"❌ DEBUG: 상세 오류: {traceback.format_exc()}")
             
     async def _select_sample_cases(self, settings: Dict[str, Any]) -> List[Dict[str, Any]]:
         """샘플 케이스 선정"""
