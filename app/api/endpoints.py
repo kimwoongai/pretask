@@ -11,6 +11,7 @@ from app.core.config import processing_mode, settings
 from app.services.single_run_processor import SingleRunProcessor
 from app.services.batch_processor import BatchProcessor
 from app.services.full_processor import FullProcessor
+from app.services.rule_only_processor import rule_only_processor
 from app.services.monitoring import metrics_collector, alert_manager
 from app.services.safety_gates import safety_gate_manager
 
@@ -1742,3 +1743,137 @@ async def update_default_rules():
     except Exception as e:
         logger.error(f"기본 규칙 업데이트 실패: {e}")
         raise HTTPException(status_code=500, detail=f"기본 규칙 업데이트 실패: {str(e)}")
+
+
+# ==================== 규칙 전용 처리 API ====================
+
+@router.post("/process/rule-only")
+async def start_rule_only_processing(
+    background_tasks: BackgroundTasks,
+    batch_size: int = 100
+):
+    """기본 규칙만으로 모든 판례 전처리 시작"""
+    try:
+        logger.info("규칙 전용 전처리 시작 요청")
+        
+        # 백그라운드에서 처리 시작
+        background_tasks.add_task(
+            rule_only_processor.process_all_precedents,
+            batch_size
+        )
+        
+        return {
+            "status": "started",
+            "message": "기본 규칙 전용 전처리가 백그라운드에서 시작되었습니다",
+            "batch_size": batch_size,
+            "started_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"규칙 전용 처리 시작 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"처리 시작 실패: {str(e)}")
+
+
+@router.get("/process/rule-only/status")
+async def get_rule_only_status():
+    """규칙 전용 처리 진행 상황 조회"""
+    try:
+        stats = rule_only_processor.get_progress_stats()
+        return {
+            "status": "success",
+            "data": stats,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"규칙 전용 처리 상태 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"상태 조회 실패: {str(e)}")
+
+
+@router.post("/process/rule-only/test")
+async def test_rule_only_processing(
+    limit: int = 10
+):
+    """규칙 전용 처리 테스트 (소량 샘플)"""
+    try:
+        from app.core.database import db_manager
+        from app.services.dsl_rules import dsl_manager
+        
+        logger.info(f"규칙 전용 처리 테스트 시작 - {limit}개 샘플")
+        
+        # 샘플 데이터 가져오기
+        collection = db_manager.get_collection('precedents_v2')
+        if not collection:
+            raise HTTPException(status_code=404, detail="precedents_v2 컬렉션을 찾을 수 없습니다")
+        
+        cursor = collection.find({}).limit(limit)
+        sample_docs = await cursor.to_list(length=limit)
+        
+        if not sample_docs:
+            raise HTTPException(status_code=404, detail="처리할 문서가 없습니다")
+        
+        # 테스트 처리
+        results = []
+        for doc in sample_docs:
+            try:
+                # 텍스트 추출
+                content_fields = ['content', 'text', 'body', 'document_text', 'full_text']
+                original_content = None
+                
+                for field in content_fields:
+                    if doc.get(field) and isinstance(doc[field], str):
+                        original_content = doc[field].strip()
+                        break
+                
+                if not original_content:
+                    continue
+                
+                # 규칙 적용
+                processed_content, rule_results = dsl_manager.apply_rules(original_content)
+                
+                # 통계 계산
+                original_length = len(original_content)
+                processed_length = len(processed_content)
+                reduction_rate = (original_length - processed_length) / original_length * 100 if original_length > 0 else 0
+                
+                result = {
+                    "document_id": str(doc.get("_id", "")),
+                    "case_name": doc.get("case_name", "")[:100],  # 처음 100자만
+                    "original_length": original_length,
+                    "processed_length": processed_length,
+                    "reduction_rate": round(reduction_rate, 2),
+                    "applied_rules": [rule["rule_id"] for rule in rule_results["applied_rules"]],
+                    "applied_rule_count": rule_results["stats"]["applied_rule_count"],
+                    "rule_types": rule_results["stats"]["rule_types"]
+                }
+                
+                results.append(result)
+                
+            except Exception as e:
+                logger.error(f"문서 처리 실패 {doc.get('_id', 'unknown')}: {e}")
+                continue
+        
+        # 전체 통계
+        if results:
+            avg_reduction = sum(r["reduction_rate"] for r in results) / len(results)
+            total_rules_applied = sum(r["applied_rule_count"] for r in results)
+        else:
+            avg_reduction = 0
+            total_rules_applied = 0
+        
+        return {
+            "status": "success",
+            "test_results": {
+                "processed_documents": len(results),
+                "average_reduction_rate": round(avg_reduction, 2),
+                "total_rules_applied": total_rules_applied,
+                "current_rules_version": dsl_manager.version,
+                "sample_results": results[:5]  # 처음 5개만 표시
+            },
+            "message": f"{len(results)}개 문서 테스트 완료",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"규칙 전용 처리 테스트 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"테스트 실패: {str(e)}")
