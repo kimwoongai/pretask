@@ -44,6 +44,66 @@
 </div>
 
 <div class="row">
+    <!-- 규칙 전용 처리 모드 -->
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-cogs me-2"></i>
+                    규칙 전용 처리
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    완성된 기본규칙만으로 모든 판례를 전처리합니다.
+                    <br><small class="text-muted">AI 평가 없음, 빠른 처리</small>
+                </p>
+                
+                <!-- 테스트 섹션 -->
+                <div class="mb-3">
+                    <h6 class="fw-bold">1. 테스트 실행</h6>
+                    <div class="input-group mb-2">
+                        <input type="number" id="test-limit" class="form-control" value="10" min="1" max="100">
+                        <button class="btn btn-outline-success" id="test-rule-processing">
+                            <i class="fas fa-flask me-1"></i>테스트
+                        </button>
+                    </div>
+                    <div id="test-results" class="small text-muted" style="display: none;"></div>
+                </div>
+
+                <!-- 전체 처리 섹션 -->
+                <div class="mb-3">
+                    <h6 class="fw-bold">2. 전체 처리</h6>
+                    <div class="input-group mb-2">
+                        <span class="input-group-text">배치 크기</span>
+                        <input type="number" id="batch-size" class="form-control" value="100" min="10" max="1000">
+                        <button class="btn btn-success" id="start-rule-processing">
+                            <i class="fas fa-play me-1"></i>시작
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 진행 상황 -->
+                <div id="rule-processing-status" style="display: none;">
+                    <h6 class="fw-bold">진행 상황</h6>
+                    <div class="progress mb-2">
+                        <div id="rule-progress-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="fw-bold" id="processed-count">0</div>
+                            <small class="text-muted">처리 완료</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="fw-bold" id="processing-rate">0/초</div>
+                            <small class="text-muted">처리 속도</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 단건 점검 모드 -->
     <div class="col-md-4">
         <div class="card h-100">

@@ -1,5 +1,50 @@
 /* Custom Styles for Document Processing Pipeline */
 
+/* 규칙 전용 처리 스타일 */
+.alert-sm {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+.progress {
+    height: 1.2rem;
+}
+
+.progress-bar {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* 알림 스타일 */
+.alert.position-fixed {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border: none;
+}
+
+.alert.position-fixed .btn-close {
+    padding: 0.5rem;
+}
+
+/* 규칙 전용 카드 스타일 */
+.card .bg-success {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+}
+
+.card .btn-success {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border: none;
+}
+
+.card .btn-outline-success {
+    color: #28a745;
+    border-color: #28a745;
+}
+
+.card .btn-outline-success:hover {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
 /* Base styles */
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

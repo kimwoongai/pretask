@@ -7,6 +7,7 @@ let systemMetricsRefresh = null;
 document.addEventListener('DOMContentLoaded', function() {
     loadDashboardData();
     initializeCharts();
+    initializeRuleProcessing();
     
     // Auto-refresh every 30 seconds
     systemMetricsRefresh = new AutoRefresh(loadSystemMetrics, 30000);
@@ -336,3 +337,228 @@ window.addEventListener('beforeunload', function() {
         systemMetricsRefresh.stop();
     }
 });
+
+// ==================== 규칙 전용 처리 기능 ====================
+
+let ruleProcessingStatus = null;
+let ruleProcessingInterval = null;
+
+// 규칙 전용 처리 초기화
+function initializeRuleProcessing() {
+    // 테스트 버튼 이벤트
+    const testButton = document.getElementById('test-rule-processing');
+    if (testButton) {
+        testButton.addEventListener('click', testRuleProcessing);
+    }
+    
+    // 전체 처리 시작 버튼 이벤트
+    const startButton = document.getElementById('start-rule-processing');
+    if (startButton) {
+        startButton.addEventListener('click', startRuleProcessing);
+    }
+    
+    // 초기 상태 확인
+    checkRuleProcessingStatus();
+}
+
+// 규칙 전용 처리 테스트
+async function testRuleProcessing() {
+    const testButton = document.getElementById('test-rule-processing');
+    const testLimit = document.getElementById('test-limit').value;
+    const testResults = document.getElementById('test-results');
+    
+    try {
+        // 버튼 비활성화
+        testButton.disabled = true;
+        testButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>테스트 중...';
+        
+        // 테스트 실행
+        const response = await API.post(`/process/rule-only/test?limit=${testLimit}`);
+        
+        if (response.status === 'success') {
+            const results = response.test_results;
+            
+            // 결과 표시
+            testResults.innerHTML = `
+                <div class="alert alert-success alert-sm">
+                    <strong>✅ 테스트 완료</strong><br>
+                    • 처리된 문서: ${results.processed_documents}개<br>
+                    • 평균 압축률: ${results.average_reduction_rate}%<br>
+                    • 적용된 규칙: ${results.total_rules_applied}개<br>
+                    • 규칙 버전: ${results.current_rules_version}
+                </div>
+            `;
+            testResults.style.display = 'block';
+            
+            // 성공 알림
+            showNotification('테스트 완료', `${results.processed_documents}개 문서 처리 완료 (평균 ${results.average_reduction_rate}% 압축)`, 'success');
+            
+        } else {
+            throw new Error(response.message || '테스트 실패');
+        }
+        
+    } catch (error) {
+        console.error('테스트 실패:', error);
+        testResults.innerHTML = `
+            <div class="alert alert-danger alert-sm">
+                <strong>❌ 테스트 실패</strong><br>
+                ${error.message}
+            </div>
+        `;
+        testResults.style.display = 'block';
+        
+        showNotification('테스트 실패', error.message, 'error');
+        
+    } finally {
+        // 버튼 복구
+        testButton.disabled = false;
+        testButton.innerHTML = '<i class="fas fa-flask me-1"></i>테스트';
+    }
+}
+
+// 규칙 전용 전체 처리 시작
+async function startRuleProcessing() {
+    const startButton = document.getElementById('start-rule-processing');
+    const batchSize = document.getElementById('batch-size').value;
+    
+    try {
+        // 확인 대화상자
+        if (!confirm(`모든 판례를 기본 규칙만으로 전처리하시겠습니까?\n배치 크기: ${batchSize}개`)) {
+            return;
+        }
+        
+        // 버튼 비활성화
+        startButton.disabled = true;
+        startButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>시작 중...';
+        
+        // 처리 시작
+        const response = await API.post(`/process/rule-only?batch_size=${batchSize}`);
+        
+        if (response.status === 'started') {
+            // 성공 알림
+            showNotification('처리 시작', '규칙 전용 전처리가 백그라운드에서 시작되었습니다', 'success');
+            
+            // 진행 상황 표시 시작
+            startRuleProcessingMonitoring();
+            
+        } else {
+            throw new Error(response.message || '처리 시작 실패');
+        }
+        
+    } catch (error) {
+        console.error('처리 시작 실패:', error);
+        showNotification('처리 시작 실패', error.message, 'error');
+        
+        // 버튼 복구
+        startButton.disabled = false;
+        startButton.innerHTML = '<i class="fas fa-play me-1"></i>시작';
+    }
+}
+
+// 규칙 처리 상태 모니터링 시작
+function startRuleProcessingMonitoring() {
+    const statusDiv = document.getElementById('rule-processing-status');
+    statusDiv.style.display = 'block';
+    
+    // 주기적으로 상태 확인 (5초마다)
+    ruleProcessingInterval = setInterval(checkRuleProcessingStatus, 5000);
+    
+    // 즉시 한 번 실행
+    checkRuleProcessingStatus();
+}
+
+// 규칙 처리 상태 확인
+async function checkRuleProcessingStatus() {
+    try {
+        const response = await API.get('/process/rule-only/status');
+        
+        if (response.status === 'success') {
+            updateRuleProcessingUI(response.data);
+        }
+        
+    } catch (error) {
+        console.error('상태 확인 실패:', error);
+    }
+}
+
+// 규칙 처리 UI 업데이트
+function updateRuleProcessingUI(data) {
+    const statusDiv = document.getElementById('rule-processing-status');
+    const progressBar = document.getElementById('rule-progress-bar');
+    const processedCount = document.getElementById('processed-count');
+    const processingRate = document.getElementById('processing-rate');
+    const startButton = document.getElementById('start-rule-processing');
+    
+    if (data.status === 'running') {
+        // 진행 중
+        statusDiv.style.display = 'block';
+        processedCount.textContent = data.processed_count.toLocaleString();
+        processingRate.textContent = `${data.processing_rate}/초`;
+        
+        // 진행률 계산 (임시로 처리된 수 기반)
+        const progress = Math.min(data.processed_count / 1000 * 100, 100);
+        progressBar.style.width = `${progress}%`;
+        progressBar.textContent = `${Math.round(progress)}%`;
+        
+        // 버튼 상태
+        startButton.disabled = true;
+        startButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>처리 중...';
+        
+    } else if (data.status === 'completed') {
+        // 완료
+        processedCount.textContent = data.processed_count.toLocaleString();
+        processingRate.textContent = `${data.processing_rate}/초`;
+        
+        progressBar.style.width = '100%';
+        progressBar.textContent = '완료';
+        progressBar.className = 'progress-bar bg-success';
+        
+        // 버튼 복구
+        startButton.disabled = false;
+        startButton.innerHTML = '<i class="fas fa-play me-1"></i>시작';
+        
+        // 모니터링 중지
+        if (ruleProcessingInterval) {
+            clearInterval(ruleProcessingInterval);
+            ruleProcessingInterval = null;
+        }
+        
+        // 완료 알림
+        showNotification('처리 완료', `총 ${data.processed_count.toLocaleString()}개 문서 처리 완료`, 'success');
+        
+    } else {
+        // 대기 상태
+        statusDiv.style.display = 'none';
+        startButton.disabled = false;
+        startButton.innerHTML = '<i class="fas fa-play me-1"></i>시작';
+    }
+}
+
+// 알림 표시 함수
+function showNotification(title, message, type = 'info') {
+    // 간단한 알림 구현 (Toast 또는 Alert 사용)
+    const alertClass = {
+        'success': 'alert-success',
+        'error': 'alert-danger',
+        'warning': 'alert-warning',
+        'info': 'alert-info'
+    }[type] || 'alert-info';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+    notification.innerHTML = `
+        <strong>${title}</strong><br>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // 5초 후 자동 제거
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 5000);
+}
