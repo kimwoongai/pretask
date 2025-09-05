@@ -1,7 +1,7 @@
 // Common JavaScript functions for Document Processing Pipeline
 
-// API base URL
-const API_BASE = '/api';
+// API base URL - 배포된 서버 주소
+const API_BASE = 'https://document-processing-pipeline.onrender.com/api';
 
 // Utility functions
 const Utils = {

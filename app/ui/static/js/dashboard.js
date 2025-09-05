@@ -6,6 +6,8 @@ let systemMetricsRefresh = null;
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ Dashboard DOM 로드 완료');
+    console.log('✅ 현재 페이지 URL:', window.location.pathname);
+    console.log('✅ DOM 요소 수:', document.querySelectorAll('*').length);
     
     loadDashboardData();
     initializeCharts();
@@ -21,6 +23,20 @@ document.addEventListener('DOMContentLoaded', function() {
     systemMetricsRefresh.start();
     
     console.log('✅ Dashboard 초기화 완료');
+});
+
+// 페이지 로드 완료 후에도 한 번 더 시도
+window.addEventListener('load', function() {
+    console.log('✅ 페이지 완전 로드 완료');
+    
+    // DOM이 아직 준비되지 않았다면 다시 시도
+    setTimeout(() => {
+        const testButton = document.getElementById('test-rule-processing');
+        if (testButton && !testButton.onclick) {
+            console.log('🔄 테스트 버튼 재초기화 시도...');
+            initializeRuleProcessing();
+        }
+    }, 500);
 });
 
 // Load all dashboard data
@@ -381,6 +397,15 @@ window.addEventListener('beforeunload', function() {
         systemMetricsRefresh.stop();
     }
 });
+
+// ==================== 간단한 테스트 함수 ====================
+function simpleTest() {
+    console.log('🎯 simpleTest 함수 호출됨!');
+    alert('simpleTest 함수가 정상 작동합니다!');
+}
+
+// 전역에서 접근 가능하도록 설정
+window.simpleTest = simpleTest;
 
 // ==================== 규칙 전용 처리 기능 ====================
 
