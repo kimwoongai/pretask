@@ -328,5 +328,127 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="/static/js/dashboard.js"></script>
+<script>
+console.log('✅ 인라인 JavaScript 시작');
+
+// 테스트 함수 직접 정의
+function simpleTest() {
+    console.log('🎯 simpleTest 함수 호출됨!');
+    alert('simpleTest 함수가 정상 작동합니다!');
+    
+    // 실제 테스트 함수 호출
+    testRuleProcessing();
+}
+
+// 규칙 전용 처리 테스트
+async function testRuleProcessing() {
+    console.log('🧪 testRuleProcessing 함수 호출됨');
+    
+    const testButton = document.getElementById('test-rule-processing');
+    const testLimit = document.getElementById('test-limit').value || 10;
+    const testResults = document.getElementById('test-results');
+    
+    try {
+        // 버튼 비활성화
+        testButton.disabled = true;
+        testButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>테스트 중...';
+        
+        console.log('🔧 API 호출 시작:', `/api/process/rule-only/test?limit=${testLimit}`);
+        
+        const response = await fetch(`/api/process/rule-only/test?limit=${testLimit}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        console.log('✅ API 응답:', data);
+        
+        if (data.status === 'success') {
+            const results = data.test_results;
+            testResults.innerHTML = `
+                <div class="alert alert-success">
+                    <strong>✅ 테스트 완료</strong><br>
+                    • 처리된 문서: ${results.processed_documents}개<br>
+                    • 평균 압축률: ${results.average_reduction_rate}%<br>
+                    • 적용된 규칙: ${results.total_rules_applied}개<br>
+                    • 처리 시간: ${results.processing_time_ms}ms
+                </div>
+            `;
+            testResults.style.display = 'block';
+        } else {
+            throw new Error(data.message || '테스트 실패');
+        }
+        
+    } catch (error) {
+        console.error('❌ 테스트 실패:', error);
+        testResults.innerHTML = `
+            <div class="alert alert-danger">
+                <strong>❌ 테스트 실패</strong><br>
+                ${error.message}<br>
+                <small>콘솔에서 자세한 정보를 확인하세요.</small>
+            </div>
+        `;
+        testResults.style.display = 'block';
+    } finally {
+        // 버튼 복구
+        testButton.disabled = false;
+        testButton.innerHTML = '<i class="fas fa-flask me-1"></i>테스트';
+    }
+}
+
+// 직접 API 테스트 함수
+async function directApiTest() {
+    const testLimit = document.getElementById('test-limit').value || 10;
+    const testResults = document.getElementById('test-results');
+    
+    try {
+        console.log('🔧 직접 API 호출 시작');
+        
+        const response = await fetch('/api/process/rule-only/test?limit=' + testLimit, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        console.log('✅ API 응답:', data);
+        
+        if (data.status === 'success') {
+            const results = data.test_results;
+            testResults.innerHTML = `
+                <div class="alert alert-success">
+                    <strong>✅ 테스트 완료</strong><br>
+                    • 처리된 문서: ${results.processed_documents}개<br>
+                    • 평균 압축률: ${results.average_reduction_rate}%<br>
+                    • 적용된 규칙: ${results.total_rules_applied}개<br>
+                    • 처리 시간: ${results.processing_time_ms}ms
+                </div>
+            `;
+            testResults.style.display = 'block';
+        } else {
+            throw new Error(data.message || '테스트 실패');
+        }
+        
+    } catch (error) {
+        console.error('❌ API 테스트 실패:', error);
+        testResults.innerHTML = `
+            <div class="alert alert-danger">
+                <strong>❌ 테스트 실패</strong><br>
+                ${error.message}<br>
+                <small>콘솔에서 자세한 정보를 확인하세요.</small>
+            </div>
+        `;
+        testResults.style.display = 'block';
+    }
+}
+
+// 전역에서 접근 가능하도록 설정
+window.simpleTest = simpleTest;
+window.directApiTest = directApiTest;
+
+console.log('✅ 인라인 테스트 함수 정의 완료');
+</script>
 {% endblock %}
