@@ -5,9 +5,15 @@ let systemMetricsRefresh = null;
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM 로드 완료');
+    
     loadDashboardData();
     initializeCharts();
-    initializeRuleProcessing();
+    
+    // 규칙 전용 처리 초기화를 약간 지연
+    setTimeout(() => {
+        initializeRuleProcessing();
+    }, 100);
     
     // Auto-refresh every 30 seconds
     systemMetricsRefresh = new AutoRefresh(loadSystemMetrics, 30000);
@@ -345,16 +351,47 @@ let ruleProcessingInterval = null;
 
 // 규칙 전용 처리 초기화
 function initializeRuleProcessing() {
+    console.log('initializeRuleProcessing 함수 호출됨');
+    
     // 테스트 버튼 이벤트
     const testButton = document.getElementById('test-rule-processing');
+    console.log('테스트 버튼 찾기:', testButton);
+    
     if (testButton) {
-        testButton.addEventListener('click', testRuleProcessing);
+        console.log('테스트 버튼 이벤트 리스너 추가');
+        
+        // 기존 이벤트 리스너 제거 (중복 방지)
+        testButton.replaceWith(testButton.cloneNode(true));
+        const newTestButton = document.getElementById('test-rule-processing');
+        
+        newTestButton.addEventListener('click', function(e) {
+            console.log('테스트 버튼 클릭됨');
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // 간단한 테스트부터
+            alert('버튼 클릭이 감지되었습니다!');
+            
+            // 실제 함수 호출
+            testRuleProcessing();
+        });
+    } else {
+        console.error('테스트 버튼을 찾을 수 없습니다');
     }
     
     // 전체 처리 시작 버튼 이벤트
     const startButton = document.getElementById('start-rule-processing');
+    console.log('시작 버튼 찾기:', startButton);
+    
     if (startButton) {
-        startButton.addEventListener('click', startRuleProcessing);
+        console.log('시작 버튼 이벤트 리스너 추가');
+        startButton.addEventListener('click', function(e) {
+            console.log('시작 버튼 클릭됨');
+            e.preventDefault();
+            startRuleProcessing();
+        });
+    } else {
+        console.error('시작 버튼을 찾을 수 없습니다');
     }
     
     // 초기 상태 확인
@@ -363,17 +400,27 @@ function initializeRuleProcessing() {
 
 // 규칙 전용 처리 테스트
 async function testRuleProcessing() {
+    console.log('testRuleProcessing 함수 호출됨');
+    
     const testButton = document.getElementById('test-rule-processing');
     const testLimit = document.getElementById('test-limit').value;
     const testResults = document.getElementById('test-results');
+    
+    console.log('테스트 버튼:', testButton);
+    console.log('테스트 개수:', testLimit);
+    console.log('결과 영역:', testResults);
     
     try {
         // 버튼 비활성화
         testButton.disabled = true;
         testButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>테스트 중...';
         
-        // 테스트 실행
-        const response = await API.post(`/process/rule-only/test?limit=${testLimit}`);
+        console.log('API 호출 시작:', `/api/process/rule-only/test?limit=${testLimit}`);
+        
+        // 테스트 실행 - API 경로 수정
+        const response = await API.post(`/api/process/rule-only/test?limit=${testLimit}`);
+        
+        console.log('API 응답:', response);
         
         if (response.status === 'success') {
             const results = response.test_results;
@@ -399,15 +446,25 @@ async function testRuleProcessing() {
         
     } catch (error) {
         console.error('테스트 실패:', error);
+        console.error('에러 스택:', error.stack);
+        
+        let errorMessage = error.message;
+        if (error.message.includes('Failed to fetch')) {
+            errorMessage = '서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.';
+        } else if (error.message.includes('404')) {
+            errorMessage = 'API 엔드포인트를 찾을 수 없습니다. 서버 설정을 확인해주세요.';
+        }
+        
         testResults.innerHTML = `
             <div class="alert alert-danger alert-sm">
                 <strong>❌ 테스트 실패</strong><br>
-                ${error.message}
+                ${errorMessage}<br>
+                <small class="text-muted">자세한 내용은 브라우저 콘솔을 확인하세요.</small>
             </div>
         `;
         testResults.style.display = 'block';
         
-        showNotification('테스트 실패', error.message, 'error');
+        showNotification('테스트 실패', errorMessage, 'error');
         
     } finally {
         // 버튼 복구
@@ -432,7 +489,7 @@ async function startRuleProcessing() {
         startButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>시작 중...';
         
         // 처리 시작
-        const response = await API.post(`/process/rule-only?batch_size=${batchSize}`);
+        const response = await API.post(`/api/process/rule-only?batch_size=${batchSize}`);
         
         if (response.status === 'started') {
             // 성공 알림
@@ -470,7 +527,7 @@ function startRuleProcessingMonitoring() {
 // 규칙 처리 상태 확인
 async function checkRuleProcessingStatus() {
     try {
-        const response = await API.get('/process/rule-only/status');
+        const response = await API.get('/api/process/rule-only/status');
         
         if (response.status === 'success') {
             updateRuleProcessingUI(response.data);
