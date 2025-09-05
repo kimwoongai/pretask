@@ -165,6 +165,101 @@ class RuleOnlyProcessor:
         
         return None
     
+    async def test_processing(self, limit: int = 10) -> Dict[str, Any]:
+        """테스트용 소량 처리"""
+        try:
+            start_time = datetime.now()
+            print(f"🧪 규칙 전용 테스트 처리 시작 - {limit}개 문서")
+            
+            # MongoDB 컬렉션 연결
+            source_collection = db_manager.get_collection('precedents_v2')
+            
+            if not source_collection:
+                raise Exception("precedents_v2 컬렉션을 찾을 수 없습니다")
+            
+            # 테스트용 문서 가져오기 (랜덤 샘플)
+            pipeline = [
+                {"$sample": {"size": limit}},
+                {"$project": {
+                    "_id": 1,
+                    "precedent_id": 1,
+                    "case_name": 1,
+                    "case_number": 1,
+                    "court_name": 1,
+                    "court_type": 1,
+                    "decision_date": 1,
+                    "content": 1,
+                    "text": 1,
+                    "body": 1,
+                    "document_text": 1,
+                    "full_text": 1
+                }}
+            ]
+            
+            test_docs = await source_collection.aggregate(pipeline).to_list(limit)
+            
+            if not test_docs:
+                return {
+                    "processed_count": 0,
+                    "avg_reduction_rate": 0.0,
+                    "total_rules_applied": 0,
+                    "rules_version": dsl_manager.version,
+                    "processing_time_ms": 0,
+                    "sample_results": [],
+                    "error": "테스트 문서를 찾을 수 없습니다"
+                }
+            
+            # 테스트 문서들 처리
+            results = []
+            total_reduction = 0.0
+            total_rules_applied = 0
+            
+            for doc in test_docs:
+                try:
+                    result = await self._process_single_document(doc)
+                    if result:
+                        results.append({
+                            "case_name": result["case_name"],
+                            "original_length": result["original_length"],
+                            "processed_length": result["processed_length"],
+                            "reduction_rate": result["reduction_rate"],
+                            "applied_rule_count": result["applied_rule_count"],
+                            "applied_rules": result["applied_rules"][:5]  # 처음 5개만
+                        })
+                        total_reduction += result["reduction_rate"]
+                        total_rules_applied += result["applied_rule_count"]
+                except Exception as e:
+                    logger.error(f"테스트 문서 처리 실패: {e}")
+                    continue
+            
+            # 통계 계산
+            processed_count = len(results)
+            avg_reduction_rate = total_reduction / processed_count if processed_count > 0 else 0.0
+            processing_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            
+            print(f"✅ 테스트 완료: {processed_count}개 처리, 평균 압축률: {avg_reduction_rate:.1f}%")
+            
+            return {
+                "processed_count": processed_count,
+                "avg_reduction_rate": round(avg_reduction_rate, 1),
+                "total_rules_applied": total_rules_applied,
+                "rules_version": dsl_manager.version,
+                "processing_time_ms": processing_time_ms,
+                "sample_results": results
+            }
+            
+        except Exception as e:
+            logger.error(f"테스트 처리 실패: {e}")
+            return {
+                "processed_count": 0,
+                "avg_reduction_rate": 0.0,
+                "total_rules_applied": 0,
+                "rules_version": "error",
+                "processing_time_ms": 0,
+                "sample_results": [],
+                "error": str(e)
+            }
+    
     def get_progress_stats(self) -> Dict[str, Any]:
         """진행 상황 통계"""
         if self.start_time:

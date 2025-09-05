@@ -5,19 +5,22 @@ let systemMetricsRefresh = null;
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM 로드 완료');
+    console.log('✅ Dashboard DOM 로드 완료');
     
     loadDashboardData();
     initializeCharts();
     
     // 규칙 전용 처리 초기화를 약간 지연
     setTimeout(() => {
+        console.log('🔧 규칙 처리 초기화 시작...');
         initializeRuleProcessing();
     }, 100);
     
     // Auto-refresh every 30 seconds
     systemMetricsRefresh = new AutoRefresh(loadSystemMetrics, 30000);
     systemMetricsRefresh.start();
+    
+    console.log('✅ Dashboard 초기화 완료');
 });
 
 // Load all dashboard data
@@ -162,46 +165,81 @@ async function loadRecentResults() {
         // 실제 최근 처리 결과 조회
         const recentResults = await API.get('/processed-cases?limit=10&sort=created_at&order=desc').catch(() => []);
         
+        console.log('🔍 Recent results 데이터 타입:', typeof recentResults);
+        console.log('🔍 Recent results 내용:', recentResults);
+        console.log('🔍 Recent results Array 여부:', Array.isArray(recentResults));
+        
         container.innerHTML = '';
         
-        recentResults.forEach(result => {
-            const resultElement = document.createElement('div');
-            resultElement.className = 'list-group-item d-flex justify-content-between align-items-start';
-            
-            const statusBadge = getStatusBadge(result.status, 
-                result.status === 'completed' ? '완료' : 
-                result.status === 'failed' ? '실패' : '진행중');
-            
-            let metricsHtml = '';
-            if (result.metrics) {
-                metricsHtml = `
-                    <div class="mt-1">
-                        <small class="text-muted">
-                            NRR: ${Utils.formatNumber(result.metrics.nrr, 3)} | 
-                            FPR: ${Utils.formatNumber(result.metrics.fpr, 3)} | 
-                            토큰절감: ${Utils.formatPercent(result.metrics.token_reduction)}
-                        </small>
+        // 배열인지 확인 후 처리
+        if (Array.isArray(recentResults)) {
+            recentResults.forEach(result => {
+                const resultElement = document.createElement('div');
+                resultElement.className = 'list-group-item d-flex justify-content-between align-items-start';
+                
+                const statusBadge = getStatusBadge(result.status, 
+                    result.status === 'completed' ? '완료' : 
+                    result.status === 'failed' ? '실패' : '진행중');
+                
+                let metricsHtml = '';
+                if (result.metrics) {
+                    // Utils가 없는 경우를 대비한 안전한 포맷팅
+                    const nrrValue = typeof result.metrics.nrr === 'number' ? (result.metrics.nrr * 100).toFixed(1) + '%' : 'N/A';
+                    const fprValue = typeof result.metrics.fpr === 'number' ? (result.metrics.fpr * 100).toFixed(1) + '%' : 'N/A';
+                    const tokenValue = typeof result.metrics.token_reduction === 'number' ? result.metrics.token_reduction.toFixed(1) + '%' : 'N/A';
+                    
+                    metricsHtml = `
+                        <div class="mt-1">
+                            <small class="text-muted">
+                                NRR: ${nrrValue} | 
+                                FPR: ${fprValue} | 
+                                토큰절감: ${tokenValue}
+                            </small>
+                        </div>
+                    `;
+                } else if (result.error) {
+                    metricsHtml = `<div class="mt-1"><small class="text-danger">${result.error}</small></div>`;
+                }
+                
+                // 시간 포맷팅 안전 처리
+                let timeDisplay = 'N/A';
+                if (result.timestamp) {
+                    try {
+                        timeDisplay = new Date(result.timestamp).toLocaleString();
+                    } catch (e) {
+                        timeDisplay = result.timestamp;
+                    }
+                } else if (result.created_at) {
+                    try {
+                        timeDisplay = new Date(result.created_at).toLocaleString();
+                    } catch (e) {
+                        timeDisplay = result.created_at;
+                    }
+                }
+                
+                resultElement.innerHTML = `
+                    <div class="ms-2 me-auto">
+                        <div class="fw-bold">${result.case_name || result.case_id || 'Unknown'}</div>
+                        <small class="text-muted">${timeDisplay}</small>
+                        ${metricsHtml}
                     </div>
+                    <div>${statusBadge}</div>
                 `;
-            } else if (result.error) {
-                metricsHtml = `<div class="mt-1"><small class="text-danger">${result.error}</small></div>`;
+                
+                container.appendChild(resultElement);
+            });
+            
+            if (recentResults.length === 0) {
+                container.innerHTML = '<div class="text-center py-3 text-muted">최근 처리 결과가 없습니다.</div>';
             }
-            
-            resultElement.innerHTML = `
-                <div class="ms-2 me-auto">
-                    <div class="fw-bold">${result.case_id}</div>
-                    <small class="text-muted">${Utils.formatRelativeTime(result.timestamp)}</small>
-                    ${metricsHtml}
-                </div>
-                <div>${statusBadge}</div>
-            `;
-            
-            container.appendChild(resultElement);
-        });
+        } else {
+            console.warn('🔍 Recent results가 배열이 아닙니다:', typeof recentResults, recentResults);
+            container.innerHTML = '<div class="text-center py-3 text-muted">데이터 형식 오류 - 배열이 아닌 데이터를 받았습니다.</div>';
+        }
         
     } catch (error) {
         console.error('Failed to load recent results:', error);
-        Utils.showError(container, '최근 결과를 로딩할 수 없습니다.');
+        container.innerHTML = `<div class="alert alert-danger">최근 결과 로딩 실패: ${error.message}</div>`;
     }
 }
 
@@ -351,32 +389,44 @@ let ruleProcessingInterval = null;
 
 // 규칙 전용 처리 초기화
 function initializeRuleProcessing() {
-    console.log('initializeRuleProcessing 함수 호출됨');
+    console.log('🔧 initializeRuleProcessing 함수 호출됨');
+    
+    // DOM이 완전히 로드되었는지 확인
+    console.log('🔧 DOM 상태:', document.readyState);
+    console.log('🔧 전체 DOM 요소 수:', document.querySelectorAll('*').length);
     
     // 테스트 버튼 이벤트
     const testButton = document.getElementById('test-rule-processing');
-    console.log('테스트 버튼 찾기:', testButton);
+    console.log('🔧 테스트 버튼 찾기 결과:', testButton);
+    console.log('🔧 테스트 버튼 HTML:', testButton ? testButton.outerHTML : 'null');
     
     if (testButton) {
-        console.log('테스트 버튼 이벤트 리스너 추가');
+        console.log('✅ 테스트 버튼 발견! 이벤트 리스너 추가 중...');
         
         // 기존 이벤트 리스너 제거 (중복 방지)
         testButton.replaceWith(testButton.cloneNode(true));
         const newTestButton = document.getElementById('test-rule-processing');
+        console.log('🔧 새 테스트 버튼:', newTestButton);
         
         newTestButton.addEventListener('click', function(e) {
-            console.log('테스트 버튼 클릭됨');
+            console.log('🎯 테스트 버튼 클릭 이벤트 발생!');
+            console.log('🎯 이벤트 객체:', e);
             e.preventDefault();
             e.stopPropagation();
             
             // 간단한 테스트부터
-            alert('버튼 클릭이 감지되었습니다!');
+            alert('🎉 버튼 클릭이 감지되었습니다!');
+            console.log('🎯 alert 표시 완료, testRuleProcessing 함수 호출 시작');
             
             // 실제 함수 호출
             testRuleProcessing();
         });
+        
+        console.log('✅ 테스트 버튼 이벤트 리스너 추가 완료');
     } else {
-        console.error('테스트 버튼을 찾을 수 없습니다');
+        console.error('❌ 테스트 버튼을 찾을 수 없습니다');
+        console.log('🔧 사용 가능한 버튼들:', document.querySelectorAll('button'));
+        console.log('🔧 test-rule-processing ID를 가진 요소들:', document.querySelectorAll('[id*="test-rule"]'));
     }
     
     // 전체 처리 시작 버튼 이벤트
