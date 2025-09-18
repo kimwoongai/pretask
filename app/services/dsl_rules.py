@@ -38,7 +38,7 @@ class DSLRule:
         try:
             if self.rule_type == 'noise_removal':
                 # 노이즈 제거 규칙
-                new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE)
+                new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE)
                 applied = new_text != text
                 
                 # 특정 규칙에 대해 상세 디버깅
@@ -55,11 +55,11 @@ class DSLRule:
                 applied = new_text != text
             elif self.rule_type == 'post_normalize':
                 # 후처리 정규화 규칙 (공백, 줄바꿈 등)
-                new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE)
+                new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE)
                 applied = new_text != text
             else:
                 # 기본 치환 규칙
-                new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE)
+                new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE)
                 applied = new_text != text
             
             if applied:
