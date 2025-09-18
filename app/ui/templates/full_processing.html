@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+
+{% block title %}전량 처리 - Document Processing Pipeline{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">전량 처리 (160,000건)</h1>
+        <div class="d-flex gap-2">
+            <button id="refresh-status" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-refresh me-1"></i>상태 새로고침
+            </button>
+        </div>
+    </div>
+
+    <!-- 전환 조건 상태 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-check-circle me-2"></i>전환 조건 확인
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="readiness-conditions">
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center">
+                                <div id="holdout-status" class="status-indicator me-2"></div>
+                                <span>홀드아웃 합격</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center">
+                                <div id="regression-status" class="status-indicator me-2"></div>
+                                <span>회귀 0</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center">
+                                <div id="rules-status" class="status-indicator me-2"></div>
+                                <span>규칙 안정</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <div class="alert alert-info" id="readiness-message">
+                            전환 조건을 확인하는 중...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 처리 옵션 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-cog me-2"></i>처리 옵션
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="run-dry-run" checked>
+                                <label class="form-check-label" for="run-dry-run">
+                                    1% 드라이런 실행 (1,600건 성능 검증)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="batch-size" class="form-label">배치 크기:</label>
+                                <input type="number" id="batch-size" class="form-control" value="100" min="50" max="500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 시작 버튼 -->
+    <div class="row mb-4">
+        <div class="col-12 text-center">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title text-danger">⚠️ 주의사항</h5>
+                    <p class="card-text">
+                        전량 처리는 160,000건의 모든 판례를 처리하는 작업입니다.<br>
+                        처리 시간은 약 <span class="fw-bold">8-12시간</span>이 소요되며, 중단 후 재시작이 가능합니다.
+                    </p>
+                    <button id="start-full-processing" class="btn btn-danger btn-lg" disabled>
+                        <i class="fas fa-play me-2"></i>전량 처리 시작
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 진행 상황 -->
+    <div class="row" id="processing-status" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-line me-2"></i>진행 상황
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- 전체 진행률 -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold">전체 진행률</span>
+                            <span id="overall-progress-text">0%</span>
+                        </div>
+                        <div class="progress mb-2" style="height: 20px;">
+                            <div id="overall-progress-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- 통계 정보 -->
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="h4 mb-0" id="processed-count">0</div>
+                            <small class="text-muted">처리 완료</small>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="h4 mb-0" id="remaining-count">160,000</div>
+                            <small class="text-muted">남은 건수</small>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="h4 mb-0" id="processing-rate">0/분</div>
+                            <small class="text-muted">처리 속도</small>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="h4 mb-0" id="estimated-time">-</div>
+                            <small class="text-muted">예상 완료</small>
+                        </div>
+                    </div>
+
+                    <!-- 제어 버튼 -->
+                    <div class="text-center mt-4">
+                        <button id="pause-processing" class="btn btn-warning me-2" style="display: none;">
+                            <i class="fas fa-pause me-1"></i>일시정지
+                        </button>
+                        <button id="resume-processing" class="btn btn-success me-2" style="display: none;">
+                            <i class="fas fa-play me-1"></i>재시작
+                        </button>
+                        <button id="stop-processing" class="btn btn-danger" style="display: none;">
+                            <i class="fas fa-stop me-1"></i>중단
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #6c757d; /* 기본 회색 */
+}
+
+.status-indicator.success {
+    background-color: #28a745;
+}
+
+.status-indicator.error {
+    background-color: #dc3545;
+}
+
+.status-indicator.warning {
+    background-color: #ffc107;
+}
+</style>
+
+<script>
+// 전역 변수
+let currentJobId = null;
+let statusCheckInterval = null;
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    setupEventListeners();
+    checkReadinessConditions();
+});
+
+// 이벤트 리스너 설정
+function setupEventListeners() {
+    document.getElementById('start-full-processing').addEventListener('click', startFullProcessing);
+    document.getElementById('refresh-status').addEventListener('click', checkReadinessConditions);
+    document.getElementById('pause-processing').addEventListener('click', pauseProcessing);
+    document.getElementById('resume-processing').addEventListener('click', resumeProcessing);
+    document.getElementById('stop-processing').addEventListener('click', stopProcessing);
+}
+
+// 전환 조건 확인
+async function checkReadinessConditions() {
+    try {
+        const response = await fetch('/api/full-processing/readiness');
+        const data = await response.json();
+        
+        updateReadinessUI(data);
+        
+        // 시작 버튼 활성화/비활성화
+        const startButton = document.getElementById('start-full-processing');
+        startButton.disabled = !data.ready;
+        
+    } catch (error) {
+        console.error('전환 조건 확인 실패:', error);
+        showNotification('조건 확인 실패', error.message, 'error');
+    }
+}
+
+// 전환 조건 UI 업데이트
+function updateReadinessUI(data) {
+    const holdoutStatus = document.getElementById('holdout-status');
+    const regressionStatus = document.getElementById('regression-status');
+    const rulesStatus = document.getElementById('rules-status');
+    const message = document.getElementById('readiness-message');
+    
+    // 상태 표시기 업데이트
+    holdoutStatus.className = 'status-indicator ' + (data.holdout_passed ? 'success' : 'error');
+    regressionStatus.className = 'status-indicator ' + (data.regression_zero ? 'success' : 'error');
+    rulesStatus.className = 'status-indicator ' + (data.rules_stable ? 'success' : 'error');
+    
+    // 메시지 업데이트
+    if (data.ready) {
+        message.className = 'alert alert-success';
+        message.textContent = '모든 전환 조건이 충족되었습니다. 전량 처리를 시작할 수 있습니다.';
+    } else {
+        message.className = 'alert alert-warning';
+        message.textContent = data.reason || '일부 전환 조건이 충족되지 않았습니다.';
+    }
+}
+
+// 전량 처리 시작
+async function startFullProcessing() {
+    const startButton = document.getElementById('start-full-processing');
+    
+    try {
+        // 확인 대화상자
+        if (!confirm('전량 처리를 시작하시겠습니까?\n\n⚠️ 이 작업은 8-12시간이 소요되며, 160,000건의 모든 판례를 처리합니다.')) {
+            return;
+        }
+        
+        // 처리 옵션 수집
+        const processingOptions = {
+            run_dry_run: document.getElementById('run-dry-run').checked,
+            batch_size: parseInt(document.getElementById('batch-size').value)
+        };
+        
+        // 버튼 비활성화
+        startButton.disabled = true;
+        startButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>시작 중...';
+        
+        // API 호출
+        const response = await fetch('/api/full-processing/start', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(processingOptions)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            currentJobId = data.job_id;
+            showProcessingStatus();
+            startStatusMonitoring();
+            showNotification('처리 시작', '전량 처리가 시작되었습니다.', 'success');
+        } else {
+            throw new Error(data.detail || '처리 시작 실패');
+        }
+        
+    } catch (error) {
+        console.error('전량 처리 시작 실패:', error);
+        showNotification('처리 시작 실패', error.message, 'error');
+        
+        // 버튼 복구
+        startButton.disabled = false;
+        startButton.innerHTML = '<i class="fas fa-play me-2"></i>전량 처리 시작';
+    }
+}
+
+// 진행 상황 표시
+function showProcessingStatus() {
+    document.getElementById('processing-status').style.display = 'block';
+    document.getElementById('pause-processing').style.display = 'inline-block';
+    document.getElementById('stop-processing').style.display = 'inline-block';
+}
+
+// 상태 모니터링 시작
+function startStatusMonitoring() {
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+    }
+    
+    statusCheckInterval = setInterval(async () => {
+        if (currentJobId) {
+            await updateProcessingStatus();
+        }
+    }, 5000); // 5초마다 상태 확인
+}
+
+// 처리 상태 업데이트
+async function updateProcessingStatus() {
+    try {
+        const response = await fetch(`/api/full-processing/status/${currentJobId}`);
+        const data = await response.json();
+        
+        // UI 업데이트
+        const processedCount = data.processed_count || 0;
+        const totalCount = data.total_count || 160000;
+        const progressPercent = Math.round((processedCount / totalCount) * 100);
+        
+        document.getElementById('processed-count').textContent = processedCount.toLocaleString();
+        document.getElementById('remaining-count').textContent = (totalCount - processedCount).toLocaleString();
+        document.getElementById('overall-progress-bar').style.width = progressPercent + '%';
+        document.getElementById('overall-progress-text').textContent = progressPercent + '%';
+        
+        // 처리 속도 계산
+        const rate = data.processing_rate || 0;
+        document.getElementById('processing-rate').textContent = rate + '/분';
+        
+        // 예상 완료 시간
+        const estimatedTime = data.estimated_completion || '-';
+        document.getElementById('estimated-time').textContent = estimatedTime;
+        
+        // 완료 확인
+        if (data.status === 'completed') {
+            clearInterval(statusCheckInterval);
+            showNotification('처리 완료', '전량 처리가 완료되었습니다.', 'success');
+            hideControlButtons();
+        }
+        
+    } catch (error) {
+        console.error('상태 업데이트 실패:', error);
+    }
+}
+
+// 처리 일시정지
+async function pauseProcessing() {
+    try {
+        const response = await fetch(`/api/full-processing/pause/${currentJobId}`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            document.getElementById('pause-processing').style.display = 'none';
+            document.getElementById('resume-processing').style.display = 'inline-block';
+            showNotification('처리 일시정지', '전량 처리가 일시정지되었습니다.', 'info');
+        }
+    } catch (error) {
+        console.error('일시정지 실패:', error);
+        showNotification('일시정지 실패', error.message, 'error');
+    }
+}
+
+// 처리 재시작
+async function resumeProcessing() {
+    try {
+        const response = await fetch(`/api/full-processing/resume/${currentJobId}`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            document.getElementById('resume-processing').style.display = 'none';
+            document.getElementById('pause-processing').style.display = 'inline-block';
+            showNotification('처리 재시작', '전량 처리가 재시작되었습니다.', 'success');
+        }
+    } catch (error) {
+        console.error('재시작 실패:', error);
+        showNotification('재시작 실패', error.message, 'error');
+    }
+}
+
+// 처리 중단
+async function stopProcessing() {
+    if (!confirm('전량 처리를 중단하시겠습니까?\n\n진행 상황은 저장되며 나중에 재시작할 수 있습니다.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/full-processing/stop/${currentJobId}`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            clearInterval(statusCheckInterval);
+            hideControlButtons();
+            showNotification('처리 중단', '전량 처리가 중단되었습니다.', 'info');
+        }
+    } catch (error) {
+        console.error('중단 실패:', error);
+        showNotification('중단 실패', error.message, 'error');
+    }
+}
+
+// 제어 버튼 숨기기
+function hideControlButtons() {
+    document.getElementById('pause-processing').style.display = 'none';
+    document.getElementById('resume-processing').style.display = 'none';
+    document.getElementById('stop-processing').style.display = 'none';
+}
+
+// 알림 표시
+function showNotification(title, message, type) {
+    // 간단한 알림 구현 (실제로는 더 정교한 알림 시스템 사용)
+    const alertClass = type === 'success' ? 'alert-success' : 
+                     type === 'error' ? 'alert-danger' : 
+                     type === 'info' ? 'alert-info' : 'alert-warning';
+    
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+    alertDiv.innerHTML = `
+        <strong>${title}</strong> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // 5초 후 자동 제거
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

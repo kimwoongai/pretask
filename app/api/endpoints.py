@@ -503,6 +503,28 @@ async def get_full_processing_status(job_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/full-processing/readiness")
+async def check_full_processing_readiness():
+    """전량 처리 전환 조건 확인"""
+    try:
+        result = await full_processor._check_readiness_conditions()
+        return result
+    except Exception as e:
+        logger.error(f"Failed to check readiness conditions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/full-processing/pause/{job_id}")
+async def pause_full_processing(job_id: str):
+    """전량 처리 일시정지"""
+    try:
+        result = await full_processor.pause_processing(job_id)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to pause full processing: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # 안전 게이트 엔드포인트
 @router.post("/safety-gates/run/{rules_version}")
 async def run_safety_gates(rules_version: str):
