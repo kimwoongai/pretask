@@ -221,7 +221,7 @@ class FullProcessor:
             mode=ProcessingMode.FULL_PROCESSING,
             sample_size=total_cases,
             stratification_criteria={},  # 전량이므로 층화 없음
-            rules_version=await self._get_current_rules_version(),
+            rules_version=self._get_current_rules_version(),
             total_cases=total_cases,
             status=ProcessingStatus.PENDING
         )
@@ -477,7 +477,7 @@ class FullProcessor:
                 if result["success"]:
                     processing_result = ProcessingResult(
                         case_id=result["case_id"],
-                        rules_version=await self._get_current_rules_version(),
+                        rules_version=self._get_current_rules_version(),
                         metrics=QualityMetrics(nrr=0, fpr=0, ss=0, token_reduction=0),  # 전량 처리에서는 평가 생략
                         before_content=result["before_content"],
                         after_content=result["after_content"],
@@ -640,9 +640,6 @@ class FullProcessor:
         # 실제로는 데이터베이스 쿼리
         return 160000
     
-    async def _get_current_rules_version(self) -> str:
-        """현재 규칙 버전 가져오기"""
-        return "v1.0.0"
     
     async def _estimate_processing_duration(
         self, 
