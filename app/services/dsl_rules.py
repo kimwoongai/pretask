@@ -538,10 +538,13 @@ class DSLRuleManager:
             rules_to_apply = self.get_sorted_rules()
         
         # 규칙 적용
-        for rule in rules_to_apply:
+        print(f"🔍 DEBUG: 적용할 규칙 수: {len(rules_to_apply)}")
+        for i, rule in enumerate(rules_to_apply):
             try:
+                old_length = len(result_text)
                 new_text, applied = rule.apply(result_text)
                 if applied:
+                    print(f"✅ DEBUG: 규칙 적용됨 [{i+1}/{len(rules_to_apply)}] {rule.rule_id} - {old_length} → {len(new_text)} 자")
                     applied_rules.append({
                         'rule_id': rule.rule_id,
                         'rule_type': rule.rule_type,
@@ -556,8 +559,13 @@ class DSLRuleManager:
                     if rule.rule_type not in stats['rule_types']:
                         stats['rule_types'][rule.rule_type] = 0
                     stats['rule_types'][rule.rule_type] += 1
+                else:
+                    # 매칭되지 않은 규칙도 로그 (처음 5개만)
+                    if i < 5:
+                        print(f"❌ DEBUG: 규칙 미적용 [{i+1}] {rule.rule_id} - 패턴 매칭 안됨")
                     
             except Exception as e:
+                print(f"❌ DEBUG: 규칙 적용 오류 {rule.rule_id}: {e}")
                 logger.error(f"규칙 적용 오류 {rule.rule_id}: {e}")
         
         stats['final_length'] = len(result_text)
