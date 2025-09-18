@@ -15,7 +15,7 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: SINGLE_RUN_MODE
-        value: true
+        value: false
       - key: AUTO_PATCH
         value: true
       - key: AUTO_ADVANCE

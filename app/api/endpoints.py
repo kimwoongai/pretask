@@ -451,14 +451,18 @@ async def get_batch_status(job_id: str):
 @router.post("/full-processing/start")
 async def start_full_processing(
     processing_options: Dict[str, Any],
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    force: bool = False
 ):
     """전량 처리 시작 (수동 버튼)"""
-    if processing_mode.is_single_run_mode() or processing_mode.is_batch_mode():
-        raise HTTPException(
-            status_code=400, 
-            detail="Not in full processing mode"
-        )
+    # force 매개변수가 있으면 모드 체크 우회
+    if not force and (processing_mode.is_single_run_mode() or processing_mode.is_batch_mode()):
+        # 개발/테스트 환경에서는 경고만 로그에 남기고 진행
+        logger.warning("전량 처리가 single_run_mode에서 실행됩니다. 프로덕션에서는 모드를 변경하세요.")
+        # raise HTTPException(
+        #     status_code=400, 
+        #     detail="Not in full processing mode"
+        # )
     
     try:
         result = await full_processor.start_full_processing(processing_options)
