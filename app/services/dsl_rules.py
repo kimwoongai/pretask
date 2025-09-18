@@ -553,8 +553,16 @@ class DSLRuleManager:
                         stats['rule_types'][rule.rule_type] = 0
                     stats['rule_types'][rule.rule_type] += 1
                 else:
+                    # 특정 규칙들에 대해 더 자세한 디버깅
+                    if rule.rule_id in ['legal_sections_heading_strip', 'procedure_titles_strip', 'block_disposition_jumun']:
+                        print(f"🔍 DEBUG: 중요 규칙 미적용 - {rule.rule_id}")
+                        print(f"🔍 DEBUG: 패턴: {rule.pattern}")
+                        print(f"🔍 DEBUG: 텍스트 샘플: {result_text[:200]}...")
+                        # 패턴이 실제로 텍스트에 있는지 간단히 확인
+                        if '【' in result_text:
+                            print(f"🔍 DEBUG: 텍스트에 브래킷 존재함 - 패턴 문제 의심")
                     # 매칭되지 않은 규칙도 로그 (처음 5개만)
-                    if i < 5:
+                    elif i < 5:
                         print(f"❌ DEBUG: 규칙 미적용 [{i+1}] {rule.rule_id} - 패턴 매칭 안됨")
                     
             except Exception as e:
