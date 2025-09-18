@@ -490,10 +490,10 @@ async function testRuleProcessing() {
         testButton.disabled = true;
         testButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>테스트 중...';
         
-        console.log('API 호출 시작:', `/api/process/rule-only/test?limit=${testLimit}`);
+        console.log('API 호출 시작:', `/process/rule-only/test?limit=${testLimit}`);
         
-        // 테스트 실행 - API 경로 수정
-        const response = await API.post(`/api/process/rule-only/test?limit=${testLimit}`);
+        // 테스트 실행 - API 경로 수정 (API_BASE에 이미 /api가 포함되어 있음)
+        const response = await API.post(`/process/rule-only/test?limit=${testLimit}`);
         
         console.log('API 응답:', response);
         
@@ -563,8 +563,8 @@ async function startRuleProcessing() {
         startButton.disabled = true;
         startButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>시작 중...';
         
-        // 처리 시작
-        const response = await API.post(`/api/process/rule-only?batch_size=${batchSize}`);
+        // 처리 시작 (API_BASE에 이미 /api가 포함되어 있음)
+        const response = await API.post(`/process/rule-only?batch_size=${batchSize}`);
         
         if (response.status === 'started') {
             // 성공 알림
@@ -602,7 +602,7 @@ function startRuleProcessingMonitoring() {
 // 규칙 처리 상태 확인
 async function checkRuleProcessingStatus() {
     try {
-        const response = await API.get('/api/process/rule-only/status');
+        const response = await API.get('/process/rule-only/status');
         
         if (response.status === 'success') {
             updateRuleProcessingUI(response.data);
