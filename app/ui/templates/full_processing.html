@@ -192,7 +192,30 @@ let statusCheckInterval = null;
 document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     checkReadinessConditions();
+    initializeButtonState();
 });
+
+// 버튼 상태 초기화
+function initializeButtonState() {
+    const startButton = document.getElementById('start-full-processing');
+    
+    // 페이지 로드 시 항상 초기 상태로 설정
+    startButton.disabled = false;  // readiness check에서 다시 설정됨
+    startButton.innerHTML = '<i class="fas fa-play me-2"></i>전량 처리 시작';
+    
+    // 진행 상황 UI 숨기기
+    document.getElementById('processing-status').style.display = 'none';
+    
+    // 제어 버튼들 숨기기
+    hideControlButtons();
+    
+    // 전역 변수 초기화
+    currentJobId = null;
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+    }
+}
 
 // 이벤트 리스너 설정
 function setupEventListeners() {
@@ -213,7 +236,14 @@ async function checkReadinessConditions() {
         
         // 시작 버튼 활성화/비활성화
         const startButton = document.getElementById('start-full-processing');
-        startButton.disabled = !data.ready;
+        
+        // 진행 중인 작업이 없을 때만 readiness에 따라 설정
+        if (!currentJobId) {
+            startButton.disabled = !data.ready;
+            if (data.ready) {
+                startButton.innerHTML = '<i class="fas fa-play me-2"></i>전량 처리 시작';
+            }
+        }
         
     } catch (error) {
         console.error('전환 조건 확인 실패:', error);
