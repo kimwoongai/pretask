@@ -43,20 +43,27 @@ class FullProcessor:
         
         try:
             logger.info("Starting full processing (160,000 cases)")
+            print("🚀 DEBUG: 전량처리 시작")
             
             # 전환 조건 확인
+            print("🔍 DEBUG: 전환 조건 확인 중...")
             readiness_check = await self._check_readiness_conditions()
+            print(f"🔍 DEBUG: 전환 조건 결과: {readiness_check}")
             if not readiness_check["ready"]:
                 raise ValueError(f"Not ready for full processing: {readiness_check['reason']}")
             
             # 1% 드라이런 실행 (선택사항)
             if processing_options.get("run_dry_run", True):
+                print("🔍 DEBUG: 드라이런 실행 중...")
                 dry_run_result = await self._execute_dry_run()
+                print(f"🔍 DEBUG: 드라이런 결과: {dry_run_result}")
                 if not dry_run_result["success"]:
                     raise ValueError(f"Dry run failed: {dry_run_result['reason']}")
             
             # 전량 처리 작업 생성
+            print("🔍 DEBUG: 전량 처리 작업 생성 중...")
             batch_job = await self._create_full_processing_job(processing_options)
+            print(f"🔍 DEBUG: 배치 작업 생성 완료: {batch_job.job_id}")
             self.current_job = batch_job
             
             # 처리 실행

@@ -279,6 +279,9 @@ async function startFullProcessing() {
             showProcessingStatus();
             startStatusMonitoring();
             showNotification('처리 시작', '전량 처리가 시작되었습니다.', 'success');
+            
+            // 버튼 텍스트를 "처리 중"으로 변경
+            startButton.innerHTML = '<i class="fas fa-cog fa-spin me-2"></i>처리 중';
         } else {
             throw new Error(data.detail || '처리 시작 실패');
         }
