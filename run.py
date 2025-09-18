@@ -38,15 +38,15 @@ async def test_database_connection():
             print("✅ MongoDB connection successful!")
             
             # 컬렉션 확인
-            collection = db_manager.get_collection("precedents_v2")
+            collection = db_manager.get_collection("processed_precedents")
             if collection is not None:
                 try:
                     count = await collection.count_documents({})
-                    print(f"📊 precedents_v2 collection has {count} documents")
+                    print(f"📊 processed_precedents collection has {count} documents")
                 except Exception as e:
                     print(f"❌ Error counting documents: {e}")
             else:
-                print("❌ Failed to get precedents_v2 collection")
+                print("❌ Failed to get processed_precedents collection")
         else:
             print("❌ MongoDB connection failed - client is None")
             

@@ -46,15 +46,15 @@ class DatabaseManager:
                     await self.mongo_client.admin.command('ping')
                     logger.info("MongoDB connection established successfully")
                     
-                    # precedents_v2 컬렉션 존재 확인
+                    # processed_precedents 컬렉션 존재 확인
                     collections = await self.mongo_db.list_collection_names()
                     logger.info(f"Available collections: {collections}")
                     
-                    if "precedents_v2" in collections:
-                        count = await self.mongo_db.precedents_v2.count_documents({})
-                        logger.info(f"precedents_v2 collection has {count} documents")
+                    if "processed_precedents" in collections:
+                        count = await self.mongo_db.processed_precedents.count_documents({})
+                        logger.info(f"processed_precedents collection has {count} documents")
                     else:
-                        logger.warning("precedents_v2 collection not found!")
+                        logger.warning("processed_precedents collection not found!")
                     
                     break  # 성공하면 루프 종료
                     
@@ -113,11 +113,11 @@ class DatabaseManager:
 
 
 class DocumentRepository:
-    """원본 문서 저장소 (precedents_v2 - 읽기 전용)"""
+    """원본 문서 저장소 (processed_precedents - 읽기 전용)"""
     
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
-        self.collection_name = "precedents_v2"  # 원본 데이터는 읽기만
+        self.collection_name = "processed_precedents"  # 전처리된 데이터 사용
     
     async def get_case(self, case_id: str) -> Optional[Dict[str, Any]]:
         """원본 케이스 조회 (읽기 전용)"""

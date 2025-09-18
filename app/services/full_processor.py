@@ -624,10 +624,10 @@ class FullProcessor:
         return total_time_seconds / 3600  # 시간 단위로 변환
     
     async def _get_batch_cases(self, offset: int, batch_size: int) -> List[Dict[str, Any]]:
-        """배치 케이스 가져오기 (precedents_v2에서)"""
+        """배치 케이스 가져오기 (processed_precedents에서)"""
         try:
             from app.core.database import db_manager
-            collection = db_manager.get_collection("precedents_v2")
+            collection = db_manager.get_collection("processed_precedents")
             
             if collection is None:
                 logger.error("Database connection unavailable")

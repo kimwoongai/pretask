@@ -81,14 +81,14 @@ async def process_single_case(case_id: str):
         import time
         import re
         
-        # 원본 케이스 데이터 가져오기 (precedents_v2에서 조회)
+        # 원본 케이스 데이터 가져오기 (processed_precedents에서 조회)
         from app.core.database import db_manager
         
         # 데이터베이스 연결 상태 확인
         logger.info(f"MongoDB client status: {db_manager.mongo_client is not None}")
         logger.info(f"MongoDB database status: {db_manager.mongo_db is not None}")
         
-        original_collection = db_manager.get_collection("precedents_v2")
+        original_collection = db_manager.get_collection("processed_precedents")
         cases_collection = db_manager.get_collection("cases")
         
         if original_collection is None or cases_collection is None:
@@ -99,7 +99,7 @@ async def process_single_case(case_id: str):
         
         logger.info("Successfully got MongoDB collections, proceeding with real data")
         
-        # 원본 케이스 조회 (precedents_v2에서)
+        # 원본 케이스 조회 (processed_precedents에서)
         try:
             if ObjectId.is_valid(case_id):
                 query = {"_id": ObjectId(case_id)}
@@ -364,7 +364,7 @@ async def get_next_case():
         from app.core.database import db_manager
         import random
         
-        collection = db_manager.get_collection("precedents_v2")
+        collection = db_manager.get_collection("processed_precedents")
         
         logger.info(f"Next case - MongoDB collection status: {collection is not None}")
         
@@ -826,8 +826,8 @@ async def get_cases(
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            # MongoDB Atlas의 precedents_v2 컬렉션에서 조회 (실제 데이터가 있는 컬렉션)
-            collection = db_manager.get_collection("precedents_v2")
+            # MongoDB Atlas의 processed_precedents 컬렉션에서 조회 (실제 데이터가 있는 컬렉션)
+            collection = db_manager.get_collection("processed_precedents")
             
             logger.info(f"Cases API - MongoDB collection status: {collection is not None} (attempt {attempt + 1})")
             
@@ -922,7 +922,7 @@ async def get_case_detail(case_id: str):
     from bson import ObjectId
     
     try:
-        collection = db_manager.get_collection("precedents_v2")
+        collection = db_manager.get_collection("processed_precedents")
         
         if collection is None:
             raise HTTPException(
@@ -2016,9 +2016,9 @@ async def test_rule_only_processing(
         logger.info(f"규칙 전용 처리 테스트 시작 - {limit}개 샘플")
         
         # 샘플 데이터 가져오기
-        collection = db_manager.get_collection('precedents_v2')
+        collection = db_manager.get_collection('processed_precedents')
         if not collection:
-            raise HTTPException(status_code=404, detail="precedents_v2 컬렉션을 찾을 수 없습니다")
+            raise HTTPException(status_code=404, detail="processed_precedents 컬렉션을 찾을 수 없습니다")
         
         cursor = collection.find({}).limit(limit)
         sample_docs = await cursor.to_list(length=limit)

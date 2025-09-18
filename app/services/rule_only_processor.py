@@ -27,11 +27,11 @@ class RuleOnlyProcessor:
             print(f"🚀 기본 규칙 전용 전처리 시작 - 배치 크기: {batch_size}")
             
             # MongoDB 컬렉션 연결
-            source_collection = db_manager.get_collection('precedents_v2')
+            source_collection = db_manager.get_collection('processed_precedents')
             target_collection = db_manager.get_collection('processed_cases')
             
             if not source_collection:
-                raise Exception("precedents_v2 컬렉션을 찾을 수 없습니다")
+                raise Exception("processed_precedents 컬렉션을 찾을 수 없습니다")
             
             # 전체 문서 수 확인
             total_count = await source_collection.count_documents({})
@@ -172,10 +172,10 @@ class RuleOnlyProcessor:
             print(f"🧪 규칙 전용 테스트 처리 시작 - {limit}개 문서")
             
             # MongoDB 컬렉션 연결
-            source_collection = db_manager.get_collection('precedents_v2')
+            source_collection = db_manager.get_collection('processed_precedents')
             
             if not source_collection:
-                raise Exception("precedents_v2 컬렉션을 찾을 수 없습니다")
+                raise Exception("processed_precedents 컬렉션을 찾을 수 없습니다")
             
             # 테스트용 문서 가져오기 (랜덤 샘플)
             pipeline = [

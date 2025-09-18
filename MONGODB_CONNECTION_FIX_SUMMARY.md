@@ -55,7 +55,7 @@ for attempt in range(max_retries):
 max_retries = 3
 for attempt in range(max_retries):
     try:
-        collection = db_manager.get_collection("precedents_v2")
+        collection = db_manager.get_collection("processed_precedents")
         if collection is None:
             # 연결 재시도
             await db_manager.connect()

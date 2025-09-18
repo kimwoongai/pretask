@@ -48,7 +48,7 @@ class DocumentCase(BaseModel):
 
 class ProcessedPrecedent(BaseModel):
     """전처리된 판례 데이터"""
-    original_id: str = Field(description="원본 precedents_v2의 _id")
+    original_id: str = Field(description="원본 processed_precedents의 _id")
     precedent_id: str = Field(description="판례 ID")
     case_name: str = Field(description="사건명")
     case_number: str = Field(description="사건번호")
@@ -79,7 +79,7 @@ class ProcessedPrecedent(BaseModel):
 class ProcessingResult(BaseModel):
     """처리 결과 (메트릭 및 분석용)"""
     case_id: str
-    original_id: str = Field(description="원본 precedents_v2의 _id")
+    original_id: str = Field(description="원본 processed_precedents의 _id")
     rules_version: str = Field(description="사용된 규칙 버전")
     metrics: QualityMetrics
     before_content: str

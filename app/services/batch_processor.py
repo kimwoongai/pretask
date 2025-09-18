@@ -338,23 +338,23 @@ class BatchProcessor:
         print(f"📋 DEBUG: 샘플 선정 시작 - 크기: {sample_size}")
         
         try:
-            # MongoDB에서 케이스 조회 (precedents_v2 컬렉션 사용)
+            # MongoDB에서 케이스 조회 (processed_precedents 컬렉션 사용)
             print(f"🔍 DEBUG: MongoDB 컬렉션 가져오기 시도...")
             print(f"🔍 DEBUG: db_manager 객체: {type(db_manager)}")
             print(f"🔍 DEBUG: db_manager 상태: {hasattr(db_manager, 'get_collection')}")
             
-            # precedents_v2 컬렉션 시도
-            collection = db_manager.get_collection('precedents_v2')
-            print(f"🔍 DEBUG: precedents_v2 컬렉션 객체: {type(collection)}")
+            # processed_precedents 컬렉션 시도
+            collection = db_manager.get_collection('processed_precedents')
+            print(f"🔍 DEBUG: processed_precedents 컬렉션 객체: {type(collection)}")
             
             if collection is None:
                 # cases 컬렉션 폴백
-                print(f"🔍 DEBUG: precedents_v2 없음, cases 컬렉션 시도...")
+                print(f"🔍 DEBUG: processed_precedents 없음, cases 컬렉션 시도...")
                 collection = db_manager.get_collection('cases')
                 print(f"🔍 DEBUG: cases 컬렉션 객체: {type(collection)}")
             
             if collection is None:
-                raise Exception("precedents_v2 또는 cases 컬렉션을 찾을 수 없습니다")
+                raise Exception("processed_precedents 또는 cases 컬렉션을 찾을 수 없습니다")
             
             print(f"✅ DEBUG: 컬렉션 연결 성공")
             
