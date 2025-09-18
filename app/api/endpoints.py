@@ -68,11 +68,13 @@ async def get_config():
 @router.post("/single-run/process/{case_id}")
 async def process_single_case(case_id: str):
     """단일 케이스 처리"""
+    # 모드 체크를 우회하여 모든 모드에서 단건점검 사용 가능하도록 수정
     if not processing_mode.is_single_run_mode():
-        raise HTTPException(
-            status_code=400, 
-            detail="Not in single run mode"
-        )
+        logger.warning("단건점검이 non-single-run 모드에서 실행됩니다.")
+        # raise HTTPException(
+        #     status_code=400, 
+        #     detail="Not in single run mode"
+        # )
     
     try:
         from app.core.database import db_manager
@@ -354,11 +356,13 @@ async def process_single_case(case_id: str):
 @router.get("/single-run/next-case")
 async def get_next_case():
     """다음 케이스 제안"""
+    # 모드 체크를 우회하여 모든 모드에서 사용 가능하도록 수정
     if not processing_mode.is_single_run_mode():
-        raise HTTPException(
-            status_code=400, 
-            detail="Not in single run mode"
-        )
+        logger.warning("단건점검 관련 API가 non-single-run 모드에서 실행됩니다.")
+        # raise HTTPException(
+        #     status_code=400, 
+        #     detail="Not in single run mode"
+        # )
     
     try:
         from app.core.database import db_manager
