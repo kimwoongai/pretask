@@ -34,11 +34,11 @@ class RuleOnlyProcessor:
             print(f"🔍 DEBUG: source_collection: {source_collection is not None}")
             print(f"🔍 DEBUG: target_collection: {target_collection is not None}")
             
-            if not source_collection:
+            if source_collection is None:
                 print("❌ DEBUG: source_collection이 None입니다")
                 raise Exception("processed_precedents 컬렉션을 찾을 수 없습니다")
             
-            if not target_collection:
+            if target_collection is None:
                 print("❌ DEBUG: target_collection이 None입니다")
                 raise Exception("cases 컬렉션을 찾을 수 없습니다")
             
@@ -259,7 +259,7 @@ class RuleOnlyProcessor:
             # MongoDB 컬렉션 연결
             source_collection = db_manager.get_collection('processed_precedents')
             
-            if not source_collection:
+            if source_collection is None:
                 raise Exception("processed_precedents 컬렉션을 찾을 수 없습니다")
             
             # 테스트용 문서 가져오기 (랜덤 샘플)
