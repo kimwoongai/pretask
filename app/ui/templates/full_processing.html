@@ -192,37 +192,7 @@ let statusCheckInterval = null;
 document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     checkReadinessConditions();
-    checkExistingJob();
 });
-
-// 기존 작업 확인
-async function checkExistingJob() {
-    // 로컬 스토리지에서 진행 중인 작업 확인
-    const savedJobId = localStorage.getItem('currentFullProcessingJob');
-    if (savedJobId) {
-        try {
-            const response = await fetch(`/api/full-processing/status/${savedJobId}`);
-            const data = await response.json();
-            
-            if (response.ok && data.status !== 'completed' && data.status !== 'failed' && data.status !== 'cancelled') {
-                // 진행 중인 작업이 있으면 UI 복원
-                currentJobId = savedJobId;
-                showProcessingStatus();
-                startStatusMonitoring();
-                
-                const startButton = document.getElementById('start-full-processing');
-                startButton.disabled = true;
-                startButton.innerHTML = '<i class="fas fa-cog fa-spin me-2"></i>처리 중';
-            } else {
-                // 완료되었거나 없는 작업이면 로컬 스토리지 정리
-                localStorage.removeItem('currentFullProcessingJob');
-            }
-        } catch (error) {
-            console.log('기존 작업 확인 실패:', error);
-            localStorage.removeItem('currentFullProcessingJob');
-        }
-    }
-}
 
 // 이벤트 리스너 설정
 function setupEventListeners() {
@@ -306,9 +276,6 @@ async function startFullProcessing() {
         
         if (response.ok) {
             currentJobId = data.job_id;
-            
-            // 로컬 스토리지에 작업 ID 저장
-            localStorage.setItem('currentFullProcessingJob', currentJobId);
             
             showProcessingStatus();
             startStatusMonitoring();
@@ -481,9 +448,6 @@ function resetStartButton() {
     
     // 현재 작업 ID 초기화
     currentJobId = null;
-    
-    // 로컬 스토리지 정리
-    localStorage.removeItem('currentFullProcessingJob');
 }
 
 // 알림 표시
