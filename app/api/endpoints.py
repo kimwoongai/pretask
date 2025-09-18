@@ -1998,12 +1998,15 @@ async def start_rule_only_processing(
     """기본 규칙만으로 모든 판례 전처리 시작"""
     try:
         logger.info("규칙 전용 전처리 시작 요청")
+        print(f"🚀 DEBUG: API에서 백그라운드 작업 시작 - 배치크기: {batch_size}")
         
         # 백그라운드에서 처리 시작
+        print("🔍 DEBUG: background_tasks.add_task 호출...")
         background_tasks.add_task(
             rule_only_processor.process_all_precedents,
             batch_size
         )
+        print("✅ DEBUG: background_tasks.add_task 완료")
         
         return {
             "status": "started",

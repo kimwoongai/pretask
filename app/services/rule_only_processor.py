@@ -35,13 +35,18 @@ class RuleOnlyProcessor:
             print(f"🔍 DEBUG: target_collection: {target_collection is not None}")
             
             if not source_collection:
+                print("❌ DEBUG: source_collection이 None입니다")
                 raise Exception("processed_precedents 컬렉션을 찾을 수 없습니다")
             
             if not target_collection:
+                print("❌ DEBUG: target_collection이 None입니다")
                 raise Exception("cases 컬렉션을 찾을 수 없습니다")
+            
+            print("✅ DEBUG: 컬렉션 검증 완료")
             
             # 전체 문서 수 확인
             print("🔍 DEBUG: count_documents 호출 시작...")
+            logger.info("count_documents 호출 시작")
             try:
                 # 타임아웃을 설정하여 무한 대기 방지
                 import asyncio
@@ -161,7 +166,10 @@ class RuleOnlyProcessor:
             }
             
         except Exception as e:
-            logger.error(f"전체 처리 실패: {e}")
+            print(f"❌ DEBUG: 전체 처리 실패: {e}")
+            print(f"❌ DEBUG: 예외 타입: {type(e)}")
+            print(f"❌ DEBUG: 예외 위치: {e.__traceback__.tb_lineno if e.__traceback__ else 'unknown'}")
+            logger.error(f"전체 처리 실패: {e}", exc_info=True)
             return {
                 "status": "failed",
                 "error": str(e),
