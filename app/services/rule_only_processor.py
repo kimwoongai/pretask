@@ -25,10 +25,14 @@ class RuleOnlyProcessor:
         try:
             self.start_time = datetime.now()
             print(f"🚀 기본 규칙 전용 전처리 시작 - 배치 크기: {batch_size}")
+            logger.info(f"규칙전용처리 시작 - 배치크기: {batch_size}")
             
             # MongoDB 컬렉션 연결
+            print("🔍 DEBUG: MongoDB 컬렉션 연결 시도...")
             source_collection = db_manager.get_collection('processed_precedents')
             target_collection = db_manager.get_collection('cases')
+            print(f"🔍 DEBUG: source_collection: {source_collection is not None}")
+            print(f"🔍 DEBUG: target_collection: {target_collection is not None}")
             
             if not source_collection:
                 raise Exception("processed_precedents 컬렉션을 찾을 수 없습니다")
@@ -37,8 +41,26 @@ class RuleOnlyProcessor:
                 raise Exception("cases 컬렉션을 찾을 수 없습니다")
             
             # 전체 문서 수 확인
-            total_count = await source_collection.count_documents({})
-            print(f"📊 전체 판례 수: {total_count:,}개")
+            print("🔍 DEBUG: count_documents 호출 시작...")
+            try:
+                total_count = await source_collection.count_documents({})
+                print(f"📊 전체 판례 수: {total_count:,}개")
+            except Exception as count_error:
+                print(f"❌ DEBUG: count_documents 실패: {count_error}")
+                logger.error(f"count_documents 실패: {count_error}")
+                raise
+            
+            # 데이터가 없으면 종료
+            if total_count == 0:
+                print("⚠️ processed_precedents 컬렉션에 데이터가 없습니다.")
+                return {
+                    "status": "completed",
+                    "total_processed": 0,
+                    "total_errors": 0,
+                    "message": "processed_precedents 컬렉션이 비어있습니다.",
+                    "start_time": self.start_time.isoformat() if self.start_time else None,
+                    "end_time": datetime.now().isoformat()
+                }
             
             # 배치 단위로 처리
             processed = 0
@@ -46,21 +68,44 @@ class RuleOnlyProcessor:
             
             while processed < total_count:
                 print(f"📋 배치 처리 중: {processed:,}/{total_count:,} ({processed/total_count*100:.1f}%)")
+                logger.info(f"배치 처리 진행: {processed}/{total_count}")
                 
                 # 배치 데이터 가져오기
-                cursor = source_collection.find({}).skip(skip).limit(batch_size)
-                batch_docs = await cursor.to_list(length=batch_size)
+                try:
+                    print(f"🔍 DEBUG: 배치 데이터 조회 - skip: {skip}, limit: {batch_size}")
+                    cursor = source_collection.find({}).skip(skip).limit(batch_size)
+                    batch_docs = await cursor.to_list(length=batch_size)
+                    print(f"🔍 DEBUG: 조회된 문서 수: {len(batch_docs)}")
+                except Exception as fetch_error:
+                    print(f"❌ DEBUG: 배치 데이터 조회 실패: {fetch_error}")
+                    logger.error(f"배치 데이터 조회 실패: {fetch_error}")
+                    break
                 
                 if not batch_docs:
+                    print("🔍 DEBUG: 더 이상 처리할 문서가 없음")
                     break
                 
                 # 배치 처리
-                batch_results = await self._process_batch(batch_docs)
+                try:
+                    print(f"🔍 DEBUG: 배치 처리 시작 - {len(batch_docs)}개 문서")
+                    batch_results = await self._process_batch(batch_docs)
+                    print(f"🔍 DEBUG: 배치 처리 완료 - {len(batch_results) if batch_results else 0}개 결과")
+                except Exception as process_error:
+                    print(f"❌ DEBUG: 배치 처리 실패: {process_error}")
+                    logger.error(f"배치 처리 실패: {process_error}")
+                    self.error_count += len(batch_docs)
+                    batch_results = []
                 
                 # 결과 저장
                 if batch_results:
-                    await target_collection.insert_many(batch_results)
-                    print(f"✅ 배치 저장 완료: {len(batch_results)}개")
+                    try:
+                        await target_collection.insert_many(batch_results)
+                        print(f"✅ 배치 저장 완료: {len(batch_results)}개")
+                        self.processed_count += len(batch_results)
+                    except Exception as save_error:
+                        print(f"❌ DEBUG: 배치 저장 실패: {save_error}")
+                        logger.error(f"배치 저장 실패: {save_error}")
+                        self.error_count += len(batch_results)
                 
                 processed += len(batch_docs)
                 skip += batch_size
