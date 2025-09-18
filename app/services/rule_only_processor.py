@@ -43,8 +43,32 @@ class RuleOnlyProcessor:
             # 전체 문서 수 확인
             print("🔍 DEBUG: count_documents 호출 시작...")
             try:
-                total_count = await source_collection.count_documents({})
+                # 타임아웃을 설정하여 무한 대기 방지
+                import asyncio
+                total_count = await asyncio.wait_for(
+                    source_collection.count_documents({}), 
+                    timeout=30.0  # 30초 타임아웃
+                )
                 print(f"📊 전체 판례 수: {total_count:,}개")
+            except asyncio.TimeoutError:
+                print("❌ DEBUG: count_documents 타임아웃 (30초 초과)")
+                logger.error("count_documents 타임아웃")
+                # 대체 방법: estimated_document_count 사용
+                try:
+                    print("🔍 DEBUG: estimated_document_count 시도...")
+                    total_count = await source_collection.estimated_document_count()
+                    print(f"📊 추정 판례 수: {total_count:,}개 (estimated)")
+                except Exception as est_error:
+                    print(f"❌ DEBUG: estimated_document_count도 실패: {est_error}")
+                    # 최후의 수단: find().limit(1) 테스트
+                    print("🔍 DEBUG: 단일 문서 조회 테스트...")
+                    test_doc = await source_collection.find_one({})
+                    if test_doc:
+                        print("✅ DEBUG: 최소 1개 문서는 조회 가능")
+                        total_count = 100  # 테스트용으로 작은 수로 시작
+                    else:
+                        print("❌ DEBUG: 문서 조회 불가능")
+                        total_count = 0
             except Exception as count_error:
                 print(f"❌ DEBUG: count_documents 실패: {count_error}")
                 logger.error(f"count_documents 실패: {count_error}")
@@ -61,6 +85,11 @@ class RuleOnlyProcessor:
                     "start_time": self.start_time.isoformat() if self.start_time else None,
                     "end_time": datetime.now().isoformat()
                 }
+            
+            # 큰 컬렉션의 경우 처리량 제한
+            if total_count > 1000:
+                print(f"⚠️ 큰 컬렉션 감지 ({total_count:,}개). 테스트를 위해 처음 1000개만 처리합니다.")
+                total_count = min(total_count, 1000)
             
             # 배치 단위로 처리
             processed = 0
