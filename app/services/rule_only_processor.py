@@ -266,9 +266,13 @@ class RuleOnlyProcessor:
             
             # MongoDB 컬렉션 연결
             source_collection = db_manager.get_collection('processed_precedents')
+            target_collection = db_manager.get_collection('cases')
             
             if source_collection is None:
                 raise Exception("processed_precedents 컬렉션을 찾을 수 없습니다")
+            
+            if target_collection is None:
+                raise Exception("cases 컬렉션을 찾을 수 없습니다")
             
             # 테스트용 문서 가져오기 (랜덤 샘플)
             pipeline = [
@@ -304,6 +308,7 @@ class RuleOnlyProcessor:
             
             # 테스트 문서들 처리
             results = []
+            saved_results = []  # cases 컬렉션에 저장할 결과들
             total_reduction = 0.0
             total_rules_applied = 0
             
@@ -311,6 +316,7 @@ class RuleOnlyProcessor:
                 try:
                     result = await self._process_single_document(doc)
                     if result:
+                        # 테스트 결과 요약 (API 응답용)
                         results.append({
                             "case_name": result["case_name"],
                             "original_length": result["original_length"],
@@ -319,11 +325,35 @@ class RuleOnlyProcessor:
                             "applied_rule_count": result["applied_rule_count"],
                             "applied_rules": result["applied_rules"][:5]  # 처음 5개만
                         })
+                        
+                        # cases 컬렉션 저장용 (전체 데이터)
+                        test_result = result.copy()
+                        test_result["processing_mode"] = "rule_only_test"  # 테스트임을 표시
+                        saved_results.append(test_result)
+                        
                         total_reduction += result["reduction_rate"]
                         total_rules_applied += result["applied_rule_count"]
                 except Exception as e:
                     logger.error(f"테스트 문서 처리 실패: {e}")
                     continue
+            
+            # 테스트 결과를 cases 컬렉션에 저장
+            if saved_results:
+                try:
+                    # 기존 테스트 결과와 중복 방지를 위해 upsert 사용
+                    for result in saved_results:
+                        await target_collection.update_one(
+                            {
+                                "original_id": result["original_id"],
+                                "processing_mode": "rule_only_test"
+                            },
+                            {"$set": result},
+                            upsert=True
+                        )
+                    print(f"✅ 테스트 결과 저장 완료: {len(saved_results)}개 → cases 컬렉션")
+                except Exception as save_error:
+                    print(f"❌ 테스트 결과 저장 실패: {save_error}")
+                    logger.error(f"테스트 결과 저장 실패: {save_error}")
             
             # 통계 계산
             processed_count = len(results)
