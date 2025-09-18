@@ -50,16 +50,9 @@ class DSLRule:
                 new_text = text
                 applied = False
             elif self.rule_type == 'legal_filtering':
-                # 법리 문장 필터링 (매치되는 문장 제거)
-                sentences = re.split(r'[.!?]\s+', text)
-                filtered_sentences = []
-                applied = False
-                for sentence in sentences:
-                    if not re.search(self.pattern, sentence, flags=re.IGNORECASE):
-                        filtered_sentences.append(sentence)
-                    else:
-                        applied = True
-                new_text = '. '.join(filtered_sentences)
+                # 법리 필터링 규칙 (전체 텍스트에서 패턴 매칭 후 제거)
+                new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE)
+                applied = new_text != text
             elif self.rule_type == 'post_normalize':
                 # 후처리 정규화 규칙 (공백, 줄바꿈 등)
                 new_text = re.sub(self.pattern, self.replacement, text, flags=re.DOTALL | re.IGNORECASE)
