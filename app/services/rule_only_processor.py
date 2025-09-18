@@ -202,7 +202,15 @@ class RuleOnlyProcessor:
                 return None
             
             # 기본 규칙 적용
+            print(f"🔍 DEBUG: DSL 규칙 적용 시작 - 원본 길이: {len(original_content)}자")
+            print(f"🔍 DEBUG: 로드된 규칙 수: {len(dsl_manager.rules)}")
+            print(f"🔍 DEBUG: 활성화된 규칙 수: {len([r for r in dsl_manager.rules.values() if r.enabled])}")
+            
             processed_content, rule_results = dsl_manager.apply_rules(original_content)
+            
+            print(f"🔍 DEBUG: 규칙 적용 완료 - 처리 후 길이: {len(processed_content)}자")
+            print(f"🔍 DEBUG: 적용된 규칙 수: {rule_results['stats']['applied_rule_count']}")
+            print(f"🔍 DEBUG: 적용된 규칙들: {[rule['rule_id'] for rule in rule_results['applied_rules']]}")
             
             # 처리 통계
             original_length = len(original_content)
