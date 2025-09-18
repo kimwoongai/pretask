@@ -28,10 +28,13 @@ class RuleOnlyProcessor:
             
             # MongoDB 컬렉션 연결
             source_collection = db_manager.get_collection('processed_precedents')
-            target_collection = db_manager.get_collection('processed_cases')
+            target_collection = db_manager.get_collection('cases')
             
             if not source_collection:
                 raise Exception("processed_precedents 컬렉션을 찾을 수 없습니다")
+            
+            if not target_collection:
+                raise Exception("cases 컬렉션을 찾을 수 없습니다")
             
             # 전체 문서 수 확인
             total_count = await source_collection.count_documents({})

@@ -663,7 +663,7 @@ async def get_quality_trends(hours: int = 24):
         end_time = datetime.now()
         start_time = end_time - timedelta(hours=hours)
         
-        collection = db_manager.get_collection("processed_cases")
+        collection = db_manager.get_collection("cases")
         if collection is None:
             # 더미 데이터 반환
             return {
@@ -755,7 +755,7 @@ async def get_processed_cases(
     try:
         from app.core.database import db_manager
         
-        collection = db_manager.get_collection("processed_cases")
+        collection = db_manager.get_collection("cases")
         if collection is None:
             # 더미 데이터 반환
             return [
